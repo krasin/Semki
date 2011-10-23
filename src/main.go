@@ -1,20 +1,20 @@
 package main
 
 import (
-	"os"
 	"log"
 )
 
 func main() {
-	var s State
-	err := s.Start()
+	var p Params
+	p, err := ReadParams()
 	if err != nil {
-		log.Panicf("Start() failed (%s)", err)
+		log.Panicf("ReadParams: %v", err)
 	}
-	mb := NewBot(&s)
-	if err := s.Loop(mb); err != nil {
-		if err != os.EOF {
-			log.Panicf("Loop: %s", err)
-		}
+	bot := new(MyBot)
+	if err = bot.Init(p); err != nil {
+		log.Panicf("bot.Init: %v", err)
+	}
+	if err := Loop(p, bot); err != nil {
+		log.Panicf("Loop: %s", err)
 	}
 }
