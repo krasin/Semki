@@ -48,10 +48,16 @@ class MyBot:
                 if cur == FOOD:
                     r[row][col] = RICH_FOOD
                     continue
+                if cur == WATER:
+                    r[row][col] = RICH_NONE
+                    continue
 
-                # Remove a pin from the value, if any (except RICH_NONE)
-                if r[row][col] < 0 and r[row][col] != RICH_NONE:
-                    r[row][col] = - r[row][col]
+                if r[row][col] != RICH_NONE:
+                    r[row][col] = 0
+
+#                # Remove a pin from the value, if any (except RICH_NONE)
+#                if r[row][col] < 0 and r[row][col] != RICH_NONE:
+#                    r[row][col] = - r[row][col]
 
                 if (row,col) in ants.hill_list:
                     if ants.hill_list[(row,col)] == MY_ANT:
@@ -123,8 +129,8 @@ class MyBot:
                     continue
                 vals = [self.north_val(pos), self.south_val(pos), self.west_val(pos), self.east_val(pos)]
                 vals = [val for val in vals if val >= 0]
-#                if len(vals) == 0:
-#                    continue
+                if len(vals) == 0:
+                    continue
                 minR = min(vals)
                 maxR = max(vals)
                 newR = (minR + maxR) // 2
@@ -164,7 +170,7 @@ class MyBot:
             directions = ('n','e','s','w')
             best_dir = 'n'
             best_loc = ant_loc
-            best_r = 0
+            best_r = self.val(ant_loc)
             for direction in directions:
                 # the destination method will wrap around the map properly
                 # and give us a new (row, col) tuple
