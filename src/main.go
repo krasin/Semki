@@ -5,7 +5,6 @@ import (
 	"log"
 )
 
-//main initializes the state and starts the processing loop
 func main() {
 	var s State
 	err := s.Start()
@@ -13,10 +12,9 @@ func main() {
 		log.Panicf("Start() failed (%s)", err)
 	}
 	mb := NewBot(&s)
-	err = s.Loop(mb, func() {
-		//if you want to do other between-turn debugging things, you can do them here
-	})
-	if err != nil && err != os.EOF {
-		log.Panicf("Loop() failed (%s)", err)
+	if err := s.Loop(mb); err != nil {
+		if err != os.EOF {
+			log.Panicf("Loop: %s", err)
+		}
 	}
 }
