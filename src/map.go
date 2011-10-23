@@ -83,7 +83,6 @@ func FromSymbol(ch byte) Item {
 	return Item(ch) + 'a'
 }
 
-
 //Location combines (Row, Col) coordinate pairs for use as keys in maps (and in a 1d array)
 type Location int
 
@@ -237,7 +236,6 @@ func (m *Map) FromLocation(loc Location) (Row, Col int) {
 	Col = int(loc) % m.Cols
 	return
 }
-
 
 //Direction represents the direction concept for issuing orders.
 type Direction int
