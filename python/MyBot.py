@@ -10,7 +10,7 @@ RICH_ENEMY = - 1000000
 RICH_ENEMY_HILL = - 3000000
 RICH_MY_HILL = -1
 
-MAX_ITER = 100
+MAX_ITER = 70
 
 # define a class with a do_turn method
 # the Ants.run method will parse and update bot input
@@ -169,6 +169,9 @@ class MyBot:
         for ant_loc in ants.my_ants():
             # try all directions in given order
             directions = ('n','e','s','w')
+            good_dir = 'e'
+            good_loc = ant_loc
+            good_r = self.val(ant_loc)
             best_dir = 'n'
             best_loc = ant_loc
             best_r = self.val(ant_loc)
@@ -181,9 +184,17 @@ class MyBot:
                     # an order is the location of a current ant and a direction
                     r = self.val(new_loc)
                     if r > best_r:
+                        good_r = best_r
+                        good_dir = best_dir
+                        good_loc = best_loc
                         best_r = r
                         best_dir = direction
                         best_loc = new_loc
+
+            if good_r > 100 and best_r / good_r < 1.2 and random.random() > good_r / best_r and not good_loc in bad_locs and not good_loc in ants.ant_list:
+                best_r = good_r
+                best_loc = good_loc
+                best_dir = good_dir
 
 
             if best_loc in bad_locs or best_loc in ants.ant_list:
