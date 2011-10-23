@@ -28,7 +28,7 @@ class MyBot:
         # initialize data structures after learning the game settings
         self.rows = ants.rows
         self.cols = ants.cols
-        self.richmap = [[RICH_BAD for col in range(ants.cols)]
+        self.richmap = [[RICH_UNKNOWN for col in range(ants.cols)]
                         for row in range(ants.rows)]
         m = ants.map
         r = self.richmap
@@ -45,6 +45,9 @@ class MyBot:
         for row in range(ants.rows):
             for col in range(ants.cols):
                 cur = m[row][col]
+                if r[row][col] == RICH_UNKNOWN and ants.visible((row,col)):
+                    r[row][col] = 0
+
                 if cur == FOOD:
                     r[row][col] = RICH_FOOD
                     continue
@@ -52,7 +55,7 @@ class MyBot:
                     r[row][col] = RICH_NONE
                     continue
 
-                if r[row][col] != RICH_NONE:
+                if r[row][col] != RICH_NONE and r[row][col] != RICH_UNKNOWN:
                     r[row][col] = 0
 
 #                # Remove a pin from the value, if any (except RICH_NONE)
@@ -72,8 +75,6 @@ class MyBot:
                         r[row][col] = RICH_ENEMY
                     continue
 
-                if not ants.visible((row,col)) and m[row][col] != WATER:
-                    r[row][col] = RICH_UNKNOWN
 
     def north(self, pos):
         return ( (pos[0] + self.rows -1) % self.rows, pos[1] )
