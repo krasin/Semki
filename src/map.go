@@ -60,20 +60,24 @@ func (it *Items) CanEnter(loc Location) bool {
 }
 
 type Map struct {
-	Terrain []Terrain
-	Items   []*Items
-	Rows    int
-	Cols    int
-	Next    *Items
+	Terrain     []Terrain
+	Items       []*Items
+	Rows        int
+	Cols        int
+	ViewMaskRow []int
+	ViewMaskCol []int
+	Next        *Items
 }
 
-func NewMap(rows, cols int) *Map {
-	return &Map{
+func NewMap(rows, cols int, viewRadius2 int) (m *Map) {
+	m = &Map{
 		Rows:    rows,
 		Cols:    cols,
 		Terrain: make([]Terrain, cols*rows),
 		Items:   []*Items{NewItems(rows, cols)},
 	}
+	m.GenerateViewMask(viewRadius2)
+	return m
 }
 
 func (m *Map) Turn() int {
@@ -125,6 +129,12 @@ func NewLoc(loc Location, d Direction, rows, cols int) Location {
 	panic(fmt.Sprintf("Unknown direction: %d", d))
 }
 
+func ShiftLoc(loc Location, rowShift, colShift, rows, cols int) Location {
+	row := Row(loc, cols)
+	col := Col(loc, cols)
+	return Loc((row+rowShift+rows)%rows, (col+colShift+cols)%cols, cols)
+}
+
 func (m *Map) Update(input []Input) {
 	m.Items = append(m.Items, NewItems(m.Rows, m.Cols))
 	for _, in := range input {
@@ -136,6 +146,8 @@ func (m *Map) Update(input []Input) {
 			fallthrough
 		case Ant:
 			fallthrough
+		case Food:
+			fallthrough
 		case DeadAnt:
 			item := &Item{
 				What:  ItemType(in.What),
@@ -146,6 +158,39 @@ func (m *Map) Update(input []Input) {
 		}
 	}
 	m.Next = NewItems(m.Rows, m.Cols)
+	m.UpdateVisibility()
+}
+
+func (m *Map) GenerateViewMask(viewRadius2 int) {
+	for i := 0; i*i <= viewRadius2; i++ {
+		for j := 0; j*j+i*i <= viewRadius2; j++ {
+			m.ViewMaskRow = append(m.ViewMaskRow, i)
+			m.ViewMaskCol = append(m.ViewMaskCol, j)
+			if i > 0 {
+				m.ViewMaskRow = append(m.ViewMaskRow, -i)
+				m.ViewMaskCol = append(m.ViewMaskCol, j)
+			}
+			if j > 0 {
+				m.ViewMaskRow = append(m.ViewMaskRow, i)
+				m.ViewMaskCol = append(m.ViewMaskCol, -j)
+			}
+			if i > 0 && j > 0 {
+				m.ViewMaskRow = append(m.ViewMaskRow, -i)
+				m.ViewMaskCol = append(m.ViewMaskCol, -j)
+			}
+		}
+	}
+}
+
+func (m *Map) UpdateVisibility() {
+	for _, ant := range m.MyAnts() {
+		for i := 0; i < len(m.ViewMaskRow); i++ {
+			loc2 := ShiftLoc(ant.Loc, m.ViewMaskRow[i], m.ViewMaskCol[i], m.Rows, m.Cols)
+			if m.Terrain[loc2] == Unknown {
+				m.Terrain[loc2] = Land
+			}
+		}
+	}
 }
 
 func (m *Map) MyAnts() (res []*Item) {
@@ -167,5 +212,6 @@ func (m *Map) CanMove(loc Location, d Direction) bool {
 }
 
 func (m *Map) Move(loc Location, d Direction) {
-	m.Next.At[loc] = append(m.Next.At[loc], &Item{What: Ant, Owner: Me, Loc: loc})
+	newLoc := m.NewLoc(loc, d)
+	m.Next.Add(newLoc, &Item{What: Ant, Owner: Me, Loc: newLoc})
 }

@@ -1,7 +1,7 @@
 package main
 
 import (
-	//	"fmt"
+	"fmt"
 	//	"io/ioutil"
 	"os"
 	"rand"
@@ -25,7 +25,7 @@ type MyBot struct {
 func (b *MyBot) Init(p Params) (err os.Error) {
 	rand.Seed(p.PlayerSeed)
 	b.p = p
-	b.m = NewMap(p.Rows, p.Cols)
+	b.m = NewMap(p.Rows, p.Cols, p.ViewRadius2)
 	return nil
 }
 
@@ -53,6 +53,9 @@ func (b *MyBot) GenerateRichman() (r *Richman) {
 			} else {
 				r.PinVal(item.Loc, RichmanEnemyHill)
 			}
+		case DeadAnt:
+		default:
+			panic(fmt.Sprintf("Unknown item: %c", item.What))
 		}
 	}
 	r.Iterate(RichmanCount)

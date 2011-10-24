@@ -39,7 +39,7 @@ func (r *Richman) NewLoc(loc Location, d Direction) Location {
 }
 
 func (r *Richman) GetAdjVal(loc Location, d Direction) int {
-	return r.Vals[r.NewLoc(loc, d)]
+	return r.Val(r.NewLoc(loc, d))
 }
 
 func min2(a, b int) int {
@@ -86,7 +86,7 @@ func (r *Richman) Iterate(count int) {
 			}
 			mx := max(max(vals[0], vals[1]), max(vals[2], vals[3]))
 			mn := min2(min2(vals[0], vals[1]), min2(vals[2], vals[3]))
-			if mx == -1 || mn == -1 {
+			if mx < 0 || mn < 0 {
 				continue
 			}
 			val := (mx + mn) / 2
