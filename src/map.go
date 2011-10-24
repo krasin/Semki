@@ -81,29 +81,45 @@ func (m *Map) Turn() int {
 }
 
 func (m *Map) Loc(row, col int) Location {
-	return Location(row*m.Cols + col)
+	return Loc(row, col, m.Cols)
 }
 
 func (m *Map) Row(loc Location) int {
-	return int(loc) / m.Cols
+	return Row(loc, m.Cols)
 }
 
 func (m *Map) Col(loc Location) int {
-	return int(loc) % m.Cols
+	return Col(loc, m.Cols)
 }
 
 func (m *Map) NewLoc(loc Location, d Direction) Location {
-	row := m.Row(loc)
-	col := m.Col(loc)
+	return NewLoc(loc, d, m.Rows, m.Cols)
+}
+
+func Loc(row, col, cols int) Location {
+	return Location(row*cols + col)
+}
+
+func Row(loc Location, cols int) int {
+	return int(loc) / cols
+}
+
+func Col(loc Location, cols int) int {
+	return int(loc) % cols
+}
+
+func NewLoc(loc Location, d Direction, rows, cols int) Location {
+	row := Row(loc, cols)
+	col := Col(loc, cols)
 	switch d {
 	case North:
-		return m.Loc((row+m.Rows-1)%m.Rows, col)
+		return Loc((row+rows-1)%rows, col, cols)
 	case South:
-		return m.Loc((row+1)%m.Rows, col)
+		return Loc((row+1)%rows, col, cols)
 	case West:
-		return m.Loc(row, (col+m.Cols-1)%m.Cols)
+		return Loc(row, (col+cols-1)%cols, cols)
 	case East:
-		return m.Loc(row, (col+1)%m.Cols)
+		return Loc(row, (col+1)%cols, cols)
 
 	}
 	panic(fmt.Sprintf("Unknown direction: %d", d))
