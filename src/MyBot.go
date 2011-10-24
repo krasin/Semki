@@ -1,39 +1,46 @@
 package main
 
 import (
+	//	"fmt"
+	//	"io/ioutil"
 	"os"
+	"rand"
 )
 
 type MyBot struct {
 	p Params
+	m *Map
 }
 
 func (b *MyBot) Init(p Params) (err os.Error) {
+	rand.Seed(p.PlayerSeed)
 	b.p = p
+	b.m = NewMap(p.Rows, p.Cols)
 	return nil
 }
 
-//DoTurn is where you should do your bot's actual work.
-func (b *MyBot) DoTurn(turn int, input []Input, orders <-chan Order) (err os.Error) {
-	/*	dirs := []Direction{North, East, South, West}
-		for loc, ant := range s.Map.Ants {
-			if ant != MY_ANT {
-				continue
+func (b *MyBot) DoTurn(input []Input) (orders []Order, err os.Error) {
+	dirs := []Direction{North, East, South, West}
+	b.m.Update(input)
+	for _, ant := range b.m.MyAnts() {
+		p := rand.Perm(4)
+		for _, i := range p {
+			d := dirs[i]
+			if b.m.CanMove(ant.Loc, d) {
+				orders = append(orders,
+					Order{
+						Row: b.m.Row(ant.Loc),
+						Col: b.m.Col(ant.Loc),
+						Dir: d,
+					})
+				b.m.Move(ant.Loc, d)
+				break
 			}
-
-			//try each direction in a random order
-			p := rand.Perm(4)
-			for _, i := range p {
-				d := dirs[i]
-
-				loc2 := s.Map.Move(loc, d)
-				if s.Map.SafeDestination(loc2) {
-					s.IssueOrderLoc(loc, d)
-					//there's also an s.IssueOrderRowCol if you don't have a Location handy
-					break
-				}
-			}
-		}*/
-	//returning an error will halt the whole program!
-	return nil
+		}
+	}
+	//	ioutil.WriteFile(fmt.Sprintf("/tmp/turn.%d.txt", b.m.Turn()),
+	//		[]byte(fmt.Sprintf("Orders: %v\n", orders)),
+	//		0644,
+	//	)
+	return
 }

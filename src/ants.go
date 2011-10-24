@@ -6,18 +6,17 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"time"
 )
 
-const LagMs int = 20
+const LagMs int = 30
 
 type Order struct {
-	Row, Col, Dir int
-	Live          bool
+	Row, Col int
+	Dir      Direction
 }
 
 type Input struct {
-	What  string
+	What  int
 	Row   int
 	Col   int
 	Owner int
@@ -25,7 +24,7 @@ type Input struct {
 
 type Bot interface {
 	Init(p Params) os.Error
-	DoTurn(turn int, input []Input, orders <-chan Order) os.Error
+	DoTurn(input []Input) (orders []Order, err os.Error)
 }
 
 var stdin = bufio.NewReader(os.Stdin)
@@ -95,41 +94,14 @@ func ReadParams() (p Params, err os.Error) {
 	return
 }
 
-func doTurn(p Params, b Bot, turn int, input []Input) (err os.Error) {
-	ready := make(chan os.Error)
-	defer close(ready)
-	can := make(chan bool, 1)
-	can <- true
-	orders := make(chan Order, 100)
-	go func() {
-		err := b.DoTurn(turn, input, orders)
-		close(orders)
-		_, ok := <-can
-		if ok {
-			ready <- err
-		}
-	}()
-	go func() {
-		time.Sleep(1000 * int64(p.TurnTime-LagMs))
-		_, ok := <-can
-		if ok {
-			ready <- nil
-		}
-	}()
-	for {
-		var order Order
-		select {
-		case err = <-ready:
-			close(can)
-			return
-		case order = <-orders:
-			// This should be some bug of select.
-			if !order.Live {
-				continue
-			}
-			line := fmt.Sprintf("o %d %d %d\n", order.Row, order.Col, order.Dir)
-			os.Stdout.Write([]byte(line))
-		}
+func doTurn(p Params, b Bot, input []Input) (err os.Error) {
+	var orders []Order
+	if orders, err = b.DoTurn(input); err != nil {
+		return
+	}
+	for _, order := range orders {
+		line := fmt.Sprintf("o %d %d %c\n", order.Row, order.Col, order.Dir)
+		os.Stdout.Write([]byte(line))
 	}
 	return
 }
@@ -138,7 +110,6 @@ func Loop(p Params, b Bot) (err os.Error) {
 	//indicate we're ready
 	os.Stdout.Write([]byte("go\n"))
 
-	var turn int
 	var input []Input
 	for {
 		line, err := stdin.ReadString('\n')
@@ -153,7 +124,7 @@ func Loop(p Params, b Bot) (err os.Error) {
 		}
 
 		if line == "go" {
-			if err = doTurn(p, b, turn, input); err != nil {
+			if err = doTurn(p, b, input); err != nil {
 				return fmt.Errorf("doTurn: %v", err)
 			}
 			os.Stdout.Write([]byte("go\n"))
@@ -166,18 +137,17 @@ func Loop(p Params, b Bot) (err os.Error) {
 		}
 
 		words := strings.SplitN(line, " ", 5)
-		var in Input
-		in.What = words[0]
-		if in.What == "turn" {
-			turn, _ = strconv.Atoi(words[1])
+		if words[0] == "turn" {
 			continue
 		}
 		if len(words) < 3 {
 			return fmt.Errorf("Invalid command format: \"%s\"", line)
 		}
+		var in Input
+		in.What = int(words[0][0])
 		in.Row, _ = strconv.Atoi(words[1])
 		in.Col, _ = strconv.Atoi(words[2])
-		if in.What == "h" || in.What == "a" || in.What == "d" {
+		if in.What == Hill || in.What == Ant || in.What == DeadAnt {
 			in.Owner, _ = strconv.Atoi(words[3])
 		}
 		input = append(input, in)
