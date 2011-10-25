@@ -17,6 +17,7 @@ var guessDirTests = []GuessDirTest{
 	{3, 3, 0, 3, 4, South},
 	{0, 0, 3, 0, 4, North},
 	{1, 0, 1, 3, 4, West},
+	{31, 1, 31, 0, 32, West},
 }
 
 func TestGuessDir(t *testing.T) {

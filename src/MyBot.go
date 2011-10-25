@@ -89,9 +89,6 @@ func (b *MyBot) DoTurn(input []Input) (orders []Order, err os.Error) {
 		if ant.HasLoc(turn + 1) {
 			// This ant has been moved
 			dir := GuessDir(ant.Loc(turn), ant.Loc(turn+1), b.m.Cols)
-			if b.m.NewLoc(ant.Loc(turn), dir) != ant.Loc(turn+1) {
-				panic("GuessDir is wrong!")
-			}
 			orders = append(orders,
 				Order{
 					Row: b.m.Row(ant.Loc(turn)),
