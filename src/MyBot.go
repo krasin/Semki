@@ -65,15 +65,16 @@ func (b *MyBot) GenerateRichman() (r *Richman) {
 func (b *MyBot) DoTurn(input []Input) (orders []Order, err os.Error) {
 	dirs := []Direction{North, East, South, West}
 	b.m.Update(input)
+	turn := b.m.Turn()
 	r := b.GenerateRichman()
 	r.Dump("/tmp/richman.txt")
 
-	for _, ant := range b.m.MyAnts() {
+	for _, ant := range b.m.MyLiveAnts {
 		bestD := Direction(North)
-		bestR := r.Val(ant.Loc)
+		bestR := r.Val(ant.Loc(turn))
 		for _, d := range dirs {
-			if b.m.CanMove(ant.Loc, d) {
-				newR := r.Val(b.m.NewLoc(ant.Loc, d))
+			if b.m.CanMove(ant.Loc(turn), d) {
+				newR := r.Val(b.m.NewLoc(ant.Loc(turn), d))
 				if newR > bestR {
 					bestD = d
 					bestR = newR
@@ -81,14 +82,14 @@ func (b *MyBot) DoTurn(input []Input) (orders []Order, err os.Error) {
 			}
 		}
 
-		if b.m.CanMove(ant.Loc, bestD) {
+		if b.m.CanMove(ant.Loc(turn), bestD) {
 			orders = append(orders,
 				Order{
-					Row: b.m.Row(ant.Loc),
-					Col: b.m.Col(ant.Loc),
+					Row: b.m.Row(ant.Loc(turn)),
+					Col: b.m.Col(ant.Loc(turn)),
 					Dir: bestD,
 				})
-			b.m.Move(ant.Loc, bestD)
+			b.m.Move(ant, bestD)
 		}
 	}
 	//	ioutil.WriteFile(fmt.Sprintf("/tmp/turn.%d.txt", b.m.Turn()),

@@ -59,6 +59,32 @@ func (it *Items) CanEnter(loc Location) bool {
 	return true
 }
 
+func (it *Items) HasAntAt(loc Location, owner int) bool {
+	for _, item := range it.At[loc] {
+		if item.What == Ant && item.Owner == owner {
+			return true
+		}
+	}
+	return false
+}
+
+type MyAnt struct {
+	Locs   []Location
+	BornAt int
+	DiedAt int
+	Alive  bool
+}
+
+func (a *MyAnt) Loc(turn int) Location {
+	return a.Locs[turn-a.BornAt]
+}
+
+func (a *MyAnt) NewTurn(turn int) {
+	if a.BornAt+len(a.Locs) < turn+1 {
+		a.Locs = append(a.Locs, a.Locs[len(a.Locs)-1])
+	}
+}
+
 type Map struct {
 	Terrain     []Terrain
 	Items       []*Items
@@ -66,6 +92,8 @@ type Map struct {
 	Cols        int
 	ViewMaskRow []int
 	ViewMaskCol []int
+	MyAnts      []*MyAnt
+	MyLiveAnts  []*MyAnt
 	Next        *Items
 }
 
@@ -98,6 +126,15 @@ func (m *Map) Col(loc Location) int {
 
 func (m *Map) NewLoc(loc Location, d Direction) Location {
 	return NewLoc(loc, d, m.Rows, m.Cols)
+}
+
+func (m *Map) MyHills() (hills []*Item) {
+	for _, item := range m.Items[m.Turn()].All {
+		if item.What == Hill && item.Owner == Me {
+			hills = append(hills, item)
+		}
+	}
+	return
 }
 
 func Loc(row, col, cols int) Location {
@@ -135,6 +172,37 @@ func ShiftLoc(loc Location, rowShift, colShift, rows, cols int) Location {
 	return Loc((row+rowShift+rows)%rows, (col+colShift+cols)%cols, cols)
 }
 
+func (m *Map) UpdateLiveAnts() {
+	// Find dead ants and remove them from MyLiveAnts
+	var dead []int
+	items := m.Items[m.Turn()]
+	for i, ant := range m.MyLiveAnts {
+		ant.NewTurn(m.Turn())
+		if !items.HasAntAt(ant.Loc(m.Turn()), Me) {
+			dead = append(dead, i)
+		}
+	}
+	for i := len(dead) - 1; i >= 0; i-- {
+		m.MyLiveAnts[dead[i]].Alive = false
+		m.MyLiveAnts[dead[i]].DiedAt = m.Turn()
+		m.MyLiveAnts[dead[i]] = m.MyLiveAnts[len(m.MyLiveAnts)-1]
+		m.MyLiveAnts = m.MyLiveAnts[:len(m.MyLiveAnts)-1]
+	}
+
+	// Find newly born ants. They born in hills
+	for _, hill := range m.MyHills() {
+		if items.HasAntAt(hill.Loc, Me) {
+			ant := &MyAnt{
+				BornAt: m.Turn(),
+				Alive:  true,
+				Locs:   []Location{hill.Loc},
+			}
+			m.MyAnts = append(m.MyAnts, ant)
+			m.MyLiveAnts = append(m.MyLiveAnts, ant)
+		}
+	}
+}
+
 func (m *Map) Update(input []Input) {
 	m.Items = append(m.Items, NewItems(m.Rows, m.Cols))
 	for _, in := range input {
@@ -158,6 +226,7 @@ func (m *Map) Update(input []Input) {
 		}
 	}
 	m.Next = NewItems(m.Rows, m.Cols)
+	m.UpdateLiveAnts()
 	m.UpdateVisibility()
 }
 
@@ -183,25 +252,14 @@ func (m *Map) GenerateViewMask(viewRadius2 int) {
 }
 
 func (m *Map) UpdateVisibility() {
-	for _, ant := range m.MyAnts() {
+	for _, ant := range m.MyLiveAnts {
 		for i := 0; i < len(m.ViewMaskRow); i++ {
-			loc2 := ShiftLoc(ant.Loc, m.ViewMaskRow[i], m.ViewMaskCol[i], m.Rows, m.Cols)
+			loc2 := ShiftLoc(ant.Loc(m.Turn()), m.ViewMaskRow[i], m.ViewMaskCol[i], m.Rows, m.Cols)
 			if m.Terrain[loc2] == Unknown {
 				m.Terrain[loc2] = Land
 			}
 		}
 	}
-}
-
-func (m *Map) MyAnts() (res []*Item) {
-	items := m.Items[m.Turn()]
-	for _, item := range items.All {
-		if item.What == Ant && item.Owner == Me {
-			res = append(res, item)
-		}
-
-	}
-	return
 }
 
 func (m *Map) CanMove(loc Location, d Direction) bool {
@@ -211,7 +269,8 @@ func (m *Map) CanMove(loc Location, d Direction) bool {
 		m.Next.CanEnter(newLoc)
 }
 
-func (m *Map) Move(loc Location, d Direction) {
-	newLoc := m.NewLoc(loc, d)
+func (m *Map) Move(ant *MyAnt, d Direction) {
+	newLoc := m.NewLoc(ant.Loc(m.Turn()), d)
 	m.Next.Add(newLoc, &Item{What: Ant, Owner: Me, Loc: newLoc})
+	ant.Locs = append(ant.Locs, newLoc)
 }
