@@ -79,6 +79,11 @@ func (a *MyAnt) Loc(turn int) Location {
 	return a.Locs[turn-a.BornAt]
 }
 
+func (a *MyAnt) HasLoc(turn int) bool {
+	return turn-a.BornAt >= 0 &&
+		turn-a.BornAt < len(a.Locs)
+}
+
 func (a *MyAnt) NewTurn(turn int) {
 	if a.BornAt+len(a.Locs) < turn+1 {
 		a.Locs = append(a.Locs, a.Locs[len(a.Locs)-1])
@@ -147,6 +152,25 @@ func Row(loc Location, cols int) int {
 
 func Col(loc Location, cols int) int {
 	return int(loc) % cols
+}
+
+func GuessDir(from, to Location, cols int) Direction {
+	fromRow := Row(from, cols)
+	fromCol := Col(from, cols)
+	toRow := Row(to, cols)
+	toCol := Col(to, cols)
+
+	here is the bug!!!
+	if fromRow == toRow { // West or East
+		if fromCol+1 == toCol || toCol == 0 {
+			return East
+		}
+		return West
+	}
+	if fromRow+1 == toRow || toRow == 0 {
+		return South
+	}
+	return North
 }
 
 func NewLoc(loc Location, d Direction, rows, cols int) Location {

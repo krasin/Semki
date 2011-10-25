@@ -67,7 +67,6 @@ func (b *MyBot) DoTurn(input []Input) (orders []Order, err os.Error) {
 	b.m.Update(input)
 	turn := b.m.Turn()
 	r := b.GenerateRichman()
-	r.Dump("/tmp/richman.txt")
 
 	for _, ant := range b.m.MyLiveAnts {
 		bestD := Direction(North)
@@ -83,18 +82,23 @@ func (b *MyBot) DoTurn(input []Input) (orders []Order, err os.Error) {
 		}
 
 		if b.m.CanMove(ant.Loc(turn), bestD) {
+			b.m.Move(ant, bestD)
+		}
+	}
+	for _, ant := range b.m.MyLiveAnts {
+		if ant.HasLoc(turn + 1) {
+			// This ant has been moved
+			dir := GuessDir(ant.Loc(turn), ant.Loc(turn+1), b.m.Cols)
+			if b.m.NewLoc(ant.Loc(turn), dir) != ant.Loc(turn+1) {
+				panic("GuessDir is wrong!")
+			}
 			orders = append(orders,
 				Order{
 					Row: b.m.Row(ant.Loc(turn)),
 					Col: b.m.Col(ant.Loc(turn)),
-					Dir: bestD,
+					Dir: dir,
 				})
-			b.m.Move(ant, bestD)
 		}
 	}
-	//	ioutil.WriteFile(fmt.Sprintf("/tmp/turn.%d.txt", b.m.Turn()),
-	//		[]byte(fmt.Sprintf("Orders: %v\n", orders)),
-	//		0644,
-	//	)
 	return
 }
