@@ -111,14 +111,16 @@ func Loop(p Params, b Bot) (err os.Error) {
 	os.Stdout.Write([]byte("go\n"))
 
 	var input []Input
+	isNewTurn := true
 	for {
 		line, err := stdin.ReadString('\n')
 		if err != nil {
-			if err == os.EOF {
-				return err
+			if err == os.EOF && isNewTurn {
+				return nil
 			}
 			return fmt.Errorf("ReadString: %v", err)
 		}
+		isNewTurn = false
 		if line = strings.TrimSpace(line); line == "" {
 			continue
 		}
@@ -129,6 +131,7 @@ func Loop(p Params, b Bot) (err os.Error) {
 			}
 			os.Stdout.Write([]byte("go\n"))
 			input = nil
+			isNewTurn = true
 			continue
 		}
 
