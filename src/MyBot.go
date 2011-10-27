@@ -18,8 +18,9 @@ const (
 )
 
 type MyBot struct {
-	p Params
-	m *Map
+	p  Params
+	m  *Map
+	cn *Country
 }
 
 func (b *MyBot) Init(p Params) (err os.Error) {
@@ -65,6 +66,12 @@ func (b *MyBot) GenerateRichman() (r *Richman) {
 func (b *MyBot) DoTurn(input []Input) (orders []Order, err os.Error) {
 	dirs := []Direction{North, East, South, West}
 	b.m.Update(input)
+	if b.cn == nil {
+		b.cn = NewCountry(b.m)
+	} else {
+		b.cn.Update()
+	}
+	b.cn.Dump("/tmp/country.txt")
 	turn := b.m.Turn()
 	r := b.GenerateRichman()
 

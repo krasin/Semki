@@ -3,6 +3,7 @@ include $(GOROOT)/src/Make.inc
 TARG=MyBot
 GOFILES=\
 	ants.go\
+	country.go\
 	main.go\
 	map.go\
 	richman.go\

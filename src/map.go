@@ -297,3 +297,16 @@ func (m *Map) Move(ant *MyAnt, d Direction) {
 	m.Next.Add(newLoc, &Item{What: Ant, Owner: Me, Loc: newLoc})
 	ant.Locs = append(ant.Locs, newLoc)
 }
+
+func (m *Map) Discovered(loc Location) bool {
+	return m.Terrain[loc] != Unknown
+}
+
+func (m *Map) Neighbours(loc Location) []Location {
+	return []Location{
+		m.NewLoc(loc, North),
+		m.NewLoc(loc, East),
+		m.NewLoc(loc, South),
+		m.NewLoc(loc, West),
+	}
+}
