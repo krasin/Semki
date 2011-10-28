@@ -27,6 +27,8 @@ import (
 	"os"
 )
 
+const MaxRadius = 6
+
 type Country struct {
 	m *Map
 
@@ -40,7 +42,7 @@ type Country struct {
 
 	// Distances from the cell to the center of the province
 	// It's 0 for cells outside of provinces
-	distances []int
+	dist []int
 
 	// The list of cells which are on the border of the area
 	// that can be reached from hills
@@ -52,15 +54,15 @@ type Country struct {
 // Creates an empty country with initial provinces with centers in my hills
 func NewCountry(m *Map) (cn *Country) {
 	cn = &Country{
-		m:         m,
-		cells:     make([]int, m.Rows*m.Cols),
-		distances: make([]int, m.Rows*m.Cols),
+		m:     m,
+		cells: make([]int, m.Rows*m.Cols),
+		dist:  make([]int, m.Rows*m.Cols),
 	}
 	for i := range cn.cells {
 		cn.cells[i] = -1
 	}
 	for _, hill := range m.MyHills() {
-		cn.tryAddBorder(hill.Loc)
+		cn.AddCell(hill.Loc)
 	}
 	cn.Update()
 	return
@@ -72,69 +74,89 @@ func (cn *Country) addProvince(center Location) {
 	cn.cells[center] = index
 }
 
-func (cn *Country) isBorder(loc Location) bool {
-	if cn.m.Terrain[loc] != Land {
-		return false
-	}
-	for _, cell := range cn.m.Neighbours(loc) {
-		if cn.cells[cell] == -1 && cn.m.Terrain[cell] != Water {
-			return true
-		}
-	}
-	return false
+func (cn *Country) IsCenter(loc Location) bool {
+	return cn.IsOwn(loc) && cn.centers[cn.cells[loc]] == loc
 }
 
-func (cn *Country) updateCell(loc Location) bool {
-	if cn.cells[loc] >= 0 {
-		return false
+func (cn *Country) updateDist(at Location) {
+	q := []Location{at}
+	for len(q) > 0 {
+		cur := q
+		q = nil
+		for _, loc := range cur {
+			dist := cn.dist[loc]
+			for _, cell := range cn.m.Neighbours(loc) {
+				if cn.IsOwn(cell) && cn.dist[cell] > dist+1 && !cn.IsCenter(cell) {
+					cn.dist[cell] = dist + 1
+					cn.cells[cell] = cn.cells[loc]
+					q = append(q, cell)
+				}
+			}
+		}
+	}
+}
+
+func (cn *Country) AddCell(loc Location) {
+	if cn.IsOwn(loc) {
+		return
+	}
+	if !cn.CanOwn(loc) {
+		return
 	}
 	minDist := -1
 	bestProvince := -1
 	for _, cell := range cn.m.Neighbours(loc) {
-		curDist := cn.distances[cell] + 1
-		curProvince := cn.cells[cell]
-		if curProvince >= 0 && curDist < minDist || minDist == -1 {
-			minDist = curDist
-			bestProvince = curProvince
+		if cn.IsOwn(cell) && (cn.dist[cell]+1 < minDist || minDist == -1) {
+			bestProvince = cn.cells[cell]
+			minDist = cn.dist[cell] + 1
 		}
 	}
-	if minDist == -1 {
-		cn.addProvince(loc)
-		return true
+	if bestProvince == -1 || minDist > MaxRadius {
+		cn.cells[loc] = len(cn.centers)
+		cn.centers = append(cn.centers, loc)
+		cn.updateDist(loc)
+	} else {
+		cn.dist[loc] = minDist
+		cn.cells[loc] = bestProvince
 	}
-	cn.cells[loc] = bestProvince
-	cn.distances[loc] = minDist
-	return true
+	cn.borders = append(cn.borders, loc)
 }
 
-func (cn *Country) tryAddBorder(loc Location) bool {
-	if !cn.isBorder(loc) {
-		return false
-	}
-	if cn.updateCell(loc) {
-		cn.borders = append(cn.borders, loc)
-		return true
-	}
-	return false
-}                  This is completely broken....
+func (cn *Country) IsOwn(loc Location) bool {
+	return cn.cells[loc] != -1
+}
+
+func (cn *Country) CanOwn(loc Location) bool {
+	return cn.m.Terrain[loc] == Land
+}
 
 func (cn *Country) Update() {
-	changed := true
-	for changed {
-		changed = false
+	var old []Location
+	for len(cn.borders) > 0 {
 		borders := cn.borders
 		cn.borders = nil
+
 		for _, loc := range borders {
+			was := false
 			for _, cell := range cn.m.Neighbours(loc) {
-				if cn.cells[cell] == -1 && cn.m.Terrain[cell] == Land {
-					if cn.tryAddBorder(cell) {
-						changed = true
+				switch cn.m.Terrain[cell] {
+				case Unknown:
+					was = true
+				case Water:
+				case Land:
+					if cn.IsOwn(cell) {
+						continue
 					}
+					cn.AddCell(cell)
 				}
 			}
-
+			if was {
+				// This location is connected with unknown territory.
+				old = append(old, loc)
+			}
 		}
 	}
+	cn.borders = old
 }
 
 func (cn *Country) Dump(filename string) (err os.Error) {
@@ -150,10 +172,12 @@ func (cn *Country) Dump(filename string) (err os.Error) {
 			switch cn.m.Terrain[cell] {
 			case Land:
 				switch {
-				case cn.distances[cell] == 0:
+				case cn.IsCenter(cell):
 					ch = '*'
-				case cn.isBorder(cell):
+				case cn.IsOwn(cell):
 					ch = '+'
+					//				case cn.isBorder(cell):
+					//					ch = '+'
 				default:
 					ch = '.'
 				}

@@ -71,7 +71,7 @@ func (b *MyBot) DoTurn(input []Input) (orders []Order, err os.Error) {
 	} else {
 		b.cn.Update()
 	}
-	b.cn.Dump("/tmp/country.txt")
+	//	b.cn.Dump("/tmp/country.txt")
 	turn := b.m.Turn()
 	r := b.GenerateRichman()
 
