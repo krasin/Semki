@@ -25,16 +25,33 @@ package main
 
 import (
 	"os"
+	"sort"
 )
 
 const MaxRadius = 6
+const JoinSize = 8
+
+type Province struct {
+	Center Location
+	Size   int
+	Conn   []int
+}
+
+func (p *Province) ConnectedWith(ind int) bool {
+	for _, v := range p.Conn {
+		if v == ind {
+			return true
+		}
+	}
+	return false
+}
 
 type Country struct {
 	m *Map
 
 	// Centers of the provinces.
 	// Initially, my hills are the centers of the first provinces
-	centers []Location
+	prov []Province
 
 	// A mapping from location to the index of province.
 	// -1 is for 'no province'
@@ -69,13 +86,24 @@ func NewCountry(m *Map) (cn *Country) {
 }
 
 func (cn *Country) addProvince(center Location) {
-	index := len(cn.centers)
-	cn.centers = append(cn.centers, center)
+	index := len(cn.prov)
+	cn.prov = append(cn.prov, Province{Center: center, Size: 1})
 	cn.cells[center] = index
 }
 
 func (cn *Country) IsCenter(loc Location) bool {
-	return cn.IsOwn(loc) && cn.centers[cn.cells[loc]] == loc
+	return cn.IsOwn(loc) && cn.prov[cn.cells[loc]].Center == loc
+}
+
+func (cn *Country) Prov(loc Location) (prov *Province) {
+	prov = &cn.prov[cn.cells[loc]]
+	for prov.Size == 0 {
+		prov = &cn.prov[prov.Center]
+
+		// This is intended: we hope to cut the length of chain by 2, not by 1
+		cn.cells[loc] = cn.cells[prov.Center]
+	}
+	return
 }
 
 func (cn *Country) updateDist(at Location) {
@@ -96,6 +124,69 @@ func (cn *Country) updateDist(at Location) {
 	}
 }
 
+// Suboptimal implementation
+func removeDuplicates(a []int, what, with int) (b []int) {
+	for i := 0; i < len(a); i++ {
+		if a[i] == what {
+			a[i] = with
+		}
+	}
+	sort.Ints(a)
+	for i := 0; i < len(a); i++ {
+		if i > 0 && a[i] == a[i-1] {
+			continue
+		}
+		b = append(b, a[i])
+	}
+	return
+}
+
+func (cn *Country) join(what, with *Province) {
+	whatInd := cn.cells[what.Center]
+	withInd := cn.cells[with.Center]
+	what.Size += with.Size
+	with.Size = 0
+	with.Center = what.Center
+	conn := what.Conn
+	what.Conn = nil
+	conn = append(conn, with.Conn...)
+	with.Conn = nil
+	for i := 0; i < len(conn); i++ {
+		c := cn.Prov(cn.prov[conn[i]].Center)
+		if c == with || c == what {
+			conn[i] = conn[len(conn)-1]
+			conn = conn[:len(conn)-1]
+		}
+	}
+	what.Conn = removeDuplicates(conn, -1, -1)
+	for _, ind := range what.Conn {
+		cn.prov[ind].Conn = removeDuplicates(cn.prov[ind].Conn, whatInd, withInd)
+	}
+}
+
+func (cn *Country) updateConnections(loc Location) {
+	prov := cn.Prov(loc)
+	for _, cell := range cn.m.Neighbours(loc) {
+		cur := cn.Prov(cell)
+		if prov == cur {
+			continue
+		}
+		if prov.ConnectedWith(cn.cells[cur.Center]) {
+			continue
+		}
+		if prov.Size < JoinSize && cur.Size < JoinSize {
+			if prov.Size < cur.Size {
+				cn.join(cur, prov)
+			} else {
+				cn.join(prov, cur)
+			}
+		} else {
+			prov.Conn = append(prov.Conn, cn.cells[cur.Center])
+			cur.Conn = append(cur.Conn, cn.cells[prov.Center])
+		}
+	}
+}
+
 func (cn *Country) AddCell(loc Location) {
 	if cn.IsOwn(loc) {
 		return
@@ -112,14 +203,14 @@ func (cn *Country) AddCell(loc Location) {
 		}
 	}
 	if bestProvince == -1 || minDist > MaxRadius {
-		cn.cells[loc] = len(cn.centers)
-		cn.centers = append(cn.centers, loc)
-		cn.updateDist(loc)
+		cn.addProvince(loc)
 	} else {
 		cn.dist[loc] = minDist
 		cn.cells[loc] = bestProvince
+		cn.prov[loc].Size++
 	}
 	cn.borders = append(cn.borders, loc)
+	cn.updateConnections(loc)
 }
 
 func (cn *Country) IsOwn(loc Location) bool {
