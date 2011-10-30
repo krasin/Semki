@@ -96,9 +96,12 @@ func (cn *Country) IsCenter(loc Location) bool {
 }
 
 func (cn *Country) Prov(loc Location) (prov *Province) {
+	if !cn.IsOwn(loc) {
+		return nil
+	}
 	prov = &cn.prov[cn.cells[loc]]
 	for prov.Size == 0 {
-		prov = &cn.prov[prov.Center]
+		prov = &cn.prov[cn.cells[prov.Center]]
 
 		// This is intended: we hope to cut the length of chain by 2, not by 1
 		cn.cells[loc] = cn.cells[prov.Center]
@@ -168,6 +171,9 @@ func (cn *Country) updateConnections(loc Location) {
 	prov := cn.Prov(loc)
 	for _, cell := range cn.m.Neighbours(loc) {
 		cur := cn.Prov(cell)
+		if cur == nil {
+			continue
+		}
 		if prov == cur {
 			continue
 		}
@@ -195,19 +201,19 @@ func (cn *Country) AddCell(loc Location) {
 		return
 	}
 	minDist := -1
-	bestProvince := -1
+	var bestProv *Province
 	for _, cell := range cn.m.Neighbours(loc) {
-		if cn.IsOwn(cell) && (cn.dist[cell]+1 < minDist || minDist == -1) {
-			bestProvince = cn.cells[cell]
+		if cn.IsOwn(cell) && (cn.dist[cell]+1 < minDist || bestProv == nil) {
+			bestProv = cn.Prov(cell)
 			minDist = cn.dist[cell] + 1
 		}
 	}
-	if bestProvince == -1 || minDist > MaxRadius {
+	if bestProv == nil || minDist > MaxRadius {
 		cn.addProvince(loc)
 	} else {
 		cn.dist[loc] = minDist
-		cn.cells[loc] = bestProvince
-		cn.prov[loc].Size++
+		cn.cells[loc] = cn.cells[bestProv.Center]
+		bestProv.Size++
 	}
 	cn.borders = append(cn.borders, loc)
 	cn.updateConnections(loc)
