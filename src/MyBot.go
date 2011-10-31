@@ -18,9 +18,10 @@ const (
 )
 
 type MyBot struct {
-	p  Params
-	m  *Map
-	cn *Country
+	p   Params
+	m   *Map
+	cn  *Country
+	gov *Goverment
 }
 
 func (b *MyBot) Init(p Params) (err os.Error) {
@@ -64,18 +65,42 @@ func (b *MyBot) GenerateRichman() (r *Richman) {
 }
 
 func (b *MyBot) DoTurn(input []Input) (orders []Order, err os.Error) {
-	dirs := []Direction{North, East, South, West}
 	b.m.Update(input)
 	if b.cn == nil {
 		b.cn = NewCountry(b.m)
 	} else {
 		b.cn.Update()
 	}
-	//	b.cn.Dump("/tmp/country.txt")
-	turn := b.m.Turn()
-	r := b.GenerateRichman()
+	if b.gov == nil {
+		b.gov = NewGoverment(b.cn, b.m)
+	} else {
+		b.gov.Update()
+	}
 
-	for _, ant := range b.m.MyLiveAnts {
+	turn := b.m.Turn()
+	for provInd, rep := range b.gov.TurnRep {
+		prov := b.cn.ProvByIndex(provInd)
+		if len(rep.MyLiveAnts) == 0 {
+			continue
+		}
+		if len(rep.Enemy) > 0 {
+			closerProv := b.cn.CloserProv(prov)
+			for _, ant := range rep.MyLiveAnts {
+				path := b.cn.Path(ant.Loc(turn), closerProv.Center)
+				dir := path.Dir(0, b.m.Cols)
+				if b.m.CanMove(ant.Loc(turn), dir) {
+					b.m.Move(ant, dir)
+				}
+			}
+			continue
+		}
+	}
+
+	//	b.cn.Dump("/tmp/country.txt")
+
+	//	r := b.GenerateRichman()
+
+	/*	for _, ant := range b.m.MyLiveAnts {
 		bestD := Direction(North)
 		bestR := r.Val(ant.Loc(turn))
 		for _, d := range dirs {
@@ -91,7 +116,7 @@ func (b *MyBot) DoTurn(input []Input) (orders []Order, err os.Error) {
 		if b.m.CanMove(ant.Loc(turn), bestD) {
 			b.m.Move(ant, bestD)
 		}
-	}
+	}*/
 	for _, ant := range b.m.MyLiveAnts {
 		if ant.HasLoc(turn + 1) {
 			// This ant has been moved

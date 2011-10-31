@@ -26,6 +26,8 @@ const (
 	Me = 0
 )
 
+var Dirs = []Direction{North, East, South, West}
+
 type Item struct {
 	What  ItemType
 	Owner int
@@ -127,6 +129,24 @@ func (m *Map) Row(loc Location) int {
 
 func (m *Map) Col(loc Location) int {
 	return Col(loc, m.Cols)
+}
+
+func (m *Map) Food() (res []Location) {
+	for _, item := range m.Items[m.Turn()].All {
+		if item.What == Food {
+			res = append(res, item.Loc)
+		}
+	}
+	return
+}
+
+func (m *Map) Enemy() (res []Location) {
+	for _, item := range m.Items[m.Turn()].All {
+		if item.What == Ant && item.Owner != Me {
+			res = append(res, item.Loc)
+		}
+	}
+	return
 }
 
 func (m *Map) NewLoc(loc Location, d Direction) Location {

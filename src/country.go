@@ -31,10 +31,44 @@ import (
 const MaxRadius = 6
 const JoinSize = 8
 
+// Encodes up to 27 moves
+type StoredPath uint64
+
+func (p StoredPath) Len() int {
+	return int(p & 0xFF)
+}
+
+func PathCodeToDirection(code int) Direction {
+	switch code {
+	case 0:
+		return North
+	case 1:
+		return East
+	case 2:
+		return South
+	case 3:
+		return West
+	}
+	panic("PathCodeToDirection: unreachable")
+}
+
+func (p StoredPath) Dir(ind int) Direction {
+	code := int((p >> (8 + uint64(2*ind))) & 0x3)
+	return PathCodeToDirection(code)
+}
+
+type Path []Location
+
+func (p Path) Dir(ind int, cols int) Direction {
+	return GuessDir(p[ind], p[ind+1], cols)
+}
+
 type Province struct {
+	Ind    int
 	Center Location
 	Size   int
 	Conn   []int
+	Dist   int
 }
 
 func (p *Province) ConnectedWith(ind int) bool {
@@ -85,9 +119,13 @@ func NewCountry(m *Map) (cn *Country) {
 	return
 }
 
+func (cn *Country) ProvCount() int {
+	return len(cn.prov)
+}
+
 func (cn *Country) addProvince(center Location) {
 	index := len(cn.prov)
-	cn.prov = append(cn.prov, Province{Center: center, Size: 1})
+	cn.prov = append(cn.prov, Province{Center: center, Size: 1, Ind: index})
 	cn.cells[center] = index
 }
 
@@ -165,6 +203,9 @@ func (cn *Country) join(what, with *Province) {
 	for _, ind := range what.Conn {
 		cn.prov[ind].Conn = removeDuplicates(cn.prov[ind].Conn, whatInd, withInd)
 	}
+	if what.Dist > with.Dist {
+		what.Dist = with.Dist
+	}
 }
 
 func (cn *Country) updateConnections(loc Location) {
@@ -217,6 +258,65 @@ func (cn *Country) AddCell(loc Location) {
 	}
 	cn.borders = append(cn.borders, loc)
 	cn.updateConnections(loc)
+
+	// Update province distance to hill province
+	// This can be wrong in case of merging areas from different hills
+	// But it's somehow fine.
+	prov := cn.Prov(loc)
+	dist := -1
+	for _, ind := range prov.Conn {
+		another := cn.prov[ind]
+		if dist == -1 || another.Dist < dist {
+			dist = another.Dist
+		}
+	}
+	prov.Dist = dist + 1
+}
+
+// Returns a province that's closer to a hill than the given one\
+// Returns itself, if it's a hill province
+func (cn *Country) CloserProv(prov *Province) *Province {
+	if prov == nil || prov.Dist == 0 {
+		return prov
+	}
+
+	bestDist := -1
+	var bestProv *Province
+	for _, ind := range prov.Conn {
+		another := cn.prov[ind]
+		if bestDist == -1 || another.Dist < bestDist {
+			bestDist = another.Dist
+			bestProv = prov
+		}
+	}
+	return bestProv
+}
+
+func (cn *Country) ProvByIndex(ind int) *Province {
+	if ind < 0 || ind >= len(cn.prov) {
+		return nil
+	}
+	return &cn.prov[ind]
+}
+
+func (cn *Country) PathSlow(from, to Location) Path {
+	panic("PathSlow is not implemented")
+}
+
+// Path returns an approximately shortest path between two location.
+// Returns nil if there's no path found
+func (cn *Country) Path(from, to Location) Path {
+	fromProv := cn.Prov(from)
+	toProv := cn.Prov(to)
+	if fromProv == nil || toProv == nil {
+		return nil
+	}
+	if fromProv == toProv {
+		// These locations are in one province.
+		// It's faster to find the real shortest path
+		return cn.PathSlow(from, to)
+	}
+	panic("Path not implemented")
 }
 
 func (cn *Country) IsOwn(loc Location) bool {
