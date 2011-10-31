@@ -1,7 +1,7 @@
 package main
 
 import (
-	//"fmt"
+	"fmt"
 	//	"io/ioutil"
 	"os"
 	"rand"
@@ -26,22 +26,35 @@ func (b *MyBot) Init(p Params) (err os.Error) {
 }
 
 type MyEstimator struct {
-
+	cn *Country
 }
 
-func (e *MyEstimator) Estimate(w *Worker, loc Location) int {
+func (est *MyEstimator) Estimate(w *Worker, loc Location) int {
 	return 1
 }
 
+func (est *MyEstimator) Prov(loc Location) int {
+	return est.cn.Prov(loc).Ind
+}
+
+func (est *MyEstimator) Conn(prov int) (res []int) {
+	for _, connProv := range est.cn.ProvByIndex(prov).Conn {
+		res = append(res, connProv)
+	}
+	return
+}
+
 func (b *MyBot) Plan() []Assignment {
-	est := new(MyEstimator)
-	p := NewPlanner(est)
-	for _, ant := range b.m.MyLiveAnts {
+	est := &MyEstimator{cn: b.cn}
+	p := NewPlanner(est, b.cn.ProvCount())
+	for i, ant := range b.m.MyLiveAnts {
 		loc := ant.Loc(b.m.Turn())
-		p.AddWorker(&Worker{loc: loc})
+		p.AddWorker(&Worker{Loc: loc, LiveInd: i, Prov: b.cn.Prov(loc).Ind})
 	}
 	for _, food := range b.m.Food() {
-		p.AddTarget(food, FoodScore)
+		if b.cn.IsOwn(food) {
+			p.AddTarget(food, FoodScore)
+		}
 	}
 	return p.MakePlan()
 }
@@ -58,7 +71,7 @@ func (b *MyBot) DoTurn(input []Input) (orders []Order, err os.Error) {
 	} else {
 		b.gov.Update()
 	}
-	_ = b.Plan()
+	plan := b.Plan()
 
 	turn := b.m.Turn()
 	for provInd, rep := range b.gov.TurnRep {
@@ -84,43 +97,62 @@ func (b *MyBot) DoTurn(input []Input) (orders []Order, err os.Error) {
 			}
 			continue
 		}
-		// Harvest
-		if len(rep.Food) > 0 {
-			ant := rep.MyLiveAnts[0]
-			path := b.cn.Path(ant.Loc(turn), rep.Food[0])
-			if path == nil {
-				panic("Unable to find a path between an ant and food in the same prov")
-			}
-			if path.Len() > 0 {
-				dir := path.Dir(0)
-				if b.m.CanMove(ant.Loc(turn), dir) {
-					b.m.Move(ant, dir)
-				}
-			}
+	}
+
+	fmt.Fprintf(os.Stderr, "turn: %d, plan: %v\n", turn, plan)
+	for _, assignment := range plan {
+		ant := b.m.MyLiveAnts[assignment.Worker.LiveInd]
+		path := b.cn.Path(ant.Loc(turn), assignment.Target.Loc)
+		fmt.Fprintf(os.Stderr, "Path: %v\n", path)
+		if path.Len() == 0 {
 			continue
 		}
-		// Discover: move to any adjacent province
-		if len(prov.Conn) > 0 {
-			ant := rep.MyLiveAnts[0]
-			toInd := prov.Conn[rand.Intn(len(prov.Conn))]
-			toProv := b.cn.ProvByIndex(toInd)
-			path := b.cn.Path(ant.Loc(turn), toProv.Center)
-			if path.Len() > 0 {
-				dir := path.Dir(0)
-				if b.m.CanMove(ant.Loc(turn), dir) {
-					b.m.Move(ant, dir)
-					continue
-				}
-			}
-		}
-		// Discover: random move
-		dir := Dirs[rand.Intn(4)]
-		ant := rep.MyLiveAnts[0]
+		dir := path.Dir(0)
+		fmt.Fprintf(os.Stderr, "Dir: %c\n", dir)
 		if b.m.CanMove(ant.Loc(turn), dir) {
 			b.m.Move(ant, dir)
+		} else {
+			fmt.Fprintf(os.Stderr, "Can't move!\n")
 		}
-
+		continue
 	}
+	// Harvest
+	//		if len(rep.Food) > 0 {
+	//			ant := rep.MyLiveAnts[0]
+	//			path := b.cn.Path(ant.Loc(turn), rep.Food[0])
+	//			if path == nil {
+	//				panic("Unable to find a path between an ant and food in the same prov")
+	//			}
+	//			if path.Len() > 0 {
+	//				dir := path.Dir(0)
+	//				if b.m.CanMove(ant.Loc(turn), dir) {
+	//					b.m.Move(ant, dir)
+	//				}
+	//			}
+	//			continue
+	//		}
+	// Discover: move to any adjacent province
+	/*		if len(prov.Conn) > 0 {
+				ant := rep.MyLiveAnts[0]
+				toInd := prov.Conn[rand.Intn(len(prov.Conn))]
+				toProv := b.cn.ProvByIndex(toInd)
+				path := b.cn.Path(ant.Loc(turn), toProv.Center)
+				if path.Len() > 0 {
+					dir := path.Dir(0)
+					if b.m.CanMove(ant.Loc(turn), dir) {
+						b.m.Move(ant, dir)
+						continue
+					}
+				}
+			}
+			// Discover: random move
+			dir := Dirs[rand.Intn(4)]
+			ant := rep.MyLiveAnts[0]
+			if b.m.CanMove(ant.Loc(turn), dir) {
+				b.m.Move(ant, dir)
+			}*/
+
+	//	}
 
 	b.cn.Dump("/tmp/country.txt")
 
@@ -128,6 +160,7 @@ func (b *MyBot) DoTurn(input []Input) (orders []Order, err os.Error) {
 		if ant.HasLoc(turn + 1) {
 			// This ant has been moved
 			dir := b.t.GuessDir(ant.Loc(turn), ant.Loc(turn+1))
+			fmt.Fprintf(os.Stderr, "guess dir: %c\n", dir)
 			orders = append(orders,
 				Order{
 					Row: b.t.Row(ant.Loc(turn)),

@@ -28,7 +28,7 @@ import (
 	"sort"
 )
 
-const MaxRadius = 6
+const MaxRadius = 10
 const JoinSize = 8
 
 type Province struct {
@@ -374,6 +374,8 @@ func (cn *Country) Update() {
 	cn.borders = old
 }
 
+var colors = []int{'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n'}
+
 func (cn *Country) Dump(filename string) (err os.Error) {
 	var f *os.File
 	if f, err = os.OpenFile(filename, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644); err != nil {
@@ -390,7 +392,12 @@ func (cn *Country) Dump(filename string) (err os.Error) {
 				case cn.IsCenter(cell):
 					ch = '*'
 				case cn.IsOwn(cell):
-					ch = '+'
+					provInd := cn.Prov(cell).Ind
+					if provInd < len(colors) {
+						ch = colors[provInd]
+					} else {
+						ch = '+'
+					}
 					//				case cn.isBorder(cell):
 					//					ch = '+'
 				default:

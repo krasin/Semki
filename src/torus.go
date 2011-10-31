@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 )
 
 type Torus struct {
@@ -21,7 +22,10 @@ func (t Torus) Col(loc Location) int {
 	return int(loc) % t.Cols
 }
 
-func (t Torus) GuessDir(from, to Location) Direction {
+func (t Torus) GuessDir(from, to Location) (d Direction) {
+	defer func() {
+		fmt.Fprintf(os.Stderr, "GuessDir(%d, %d): %c\n", from, to, d)
+	}()
 	fromRow := t.Row(from)
 	fromCol := t.Col(from)
 	toRow := t.Row(to)
