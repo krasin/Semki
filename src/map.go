@@ -330,3 +330,15 @@ func (m *Map) Neighbours(loc Location) []Location {
 		m.NewLoc(loc, West),
 	}
 }
+
+func (m *Map) LandNeighbours(loc Location) (res []Location) {
+	f := func(cell Location) {
+		if m.Terrain[cell] == Land {
+			res = append(res, cell)
+		}
+	}
+	for _, dir := range Dirs {
+		f(m.NewLoc(loc, dir))
+	}
+	return
+}

@@ -7,6 +7,7 @@ GOFILES=\
 	goverment.go\
 	main.go\
 	map.go\
+	path.go\
 	richman.go\
 	MyBot.go\
 

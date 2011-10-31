@@ -31,51 +31,6 @@ import (
 const MaxRadius = 6
 const JoinSize = 8
 
-// Encodes up to 27 moves
-type StoredPath uint64
-
-func (p StoredPath) Len() int {
-	return int(p & 0xFF)
-}
-
-func PathCodeToDirection(code int) Direction {
-	switch code {
-	case 0:
-		return North
-	case 1:
-		return East
-	case 2:
-		return South
-	case 3:
-		return West
-	}
-	panic("PathCodeToDirection: unreachable")
-}
-
-func (p StoredPath) Dir(ind int) Direction {
-	code := int((p >> (8 + uint64(2*ind))) & 0x3)
-	return PathCodeToDirection(code)
-}
-
-type Path struct {
-	l []Location
-}
-
-func (p *Path) Append(loc Location) {
-	p.l = append(p.l, loc)
-}
-
-func (p *Path) Len() int {
-	if len(p.l) == 0 {
-		return 0
-	}
-	return len(p.l) - 1
-}
-
-func (p *Path) Dir(ind int, cols int) Direction {
-	return GuessDir(p.l[ind], p.l[ind+1], cols)
-}
-
 type Province struct {
 	Ind    int
 	Center Location
@@ -312,10 +267,9 @@ func (cn *Country) ProvByIndex(ind int) *Province {
 	return &cn.prov[ind]
 }
 
-func (cn *Country) PathSlow(from, to Location) (p *Path) {
+func (cn *Country) PathSlow(from, to Location) (p Path) {
 	if to == from {
-		p = new(Path)
-		p.Append(from)
+		return NewPath(from)
 	}
 	a := make([]int, cn.m.Rows*cn.m.Cols)
 	for i := range a {
@@ -329,7 +283,7 @@ func (cn *Country) PathSlow(from, to Location) (p *Path) {
 		q2 = q
 		q = tmp[:0]
 		for _, loc := range q2 {
-			for _, cell := range cn.m.Neighbours(loc) {
+			for _, cell := range cn.m.LandNeighbours(loc) {
 				if a[cell] == -1 {
 					a[cell] = a[loc] + 1
 					q = append(q, cell)
@@ -344,24 +298,23 @@ func (cn *Country) PathSlow(from, to Location) (p *Path) {
 		return nil
 	}
 	// Now, collect the path
-	p = new(Path)
+	p = NewPath(from)
 	cur := from
 	for cur != to {
-		p.Append(cur)
 		for _, cell := range cn.m.Neighbours(cur) {
 			if a[cell] == a[cur]-1 {
+				p.Append(GuessDir(cur, cell, cn.m.Cols), cn.m.Rows, cn.m.Cols)
 				cur = cell
 				break
 			}
 		}
 	}
-	p.Append(to)
 	return
 }
 
 // Path returns an approximately shortest path between two location.
 // Returns nil if there's no path found
-func (cn *Country) Path(from, to Location) *Path {
+func (cn *Country) Path(from, to Location) Path {
 	fromProv := cn.Prov(from)
 	toProv := cn.Prov(to)
 	if fromProv == nil || toProv == nil {
