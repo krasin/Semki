@@ -8,7 +8,6 @@ GOFILES=\
 	main.go\
 	map.go\
 	path.go\
-	richman.go\
 	MyBot.go\
 
 include $(GOROOT)/src/Make.cmd
