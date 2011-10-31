@@ -49,6 +49,8 @@ func (p *Province) ConnectedWith(ind int) bool {
 }
 
 type Country struct {
+	T Torus
+
 	m *Map
 
 	// Centers of the provinces.
@@ -73,9 +75,10 @@ type Country struct {
 // Creates an empty country with initial provinces with centers in my hills
 func NewCountry(m *Map) (cn *Country) {
 	cn = &Country{
+		T:     m.T,
 		m:     m,
-		cells: make([]int, m.Rows*m.Cols),
-		dist:  make([]int, m.Rows*m.Cols),
+		cells: make([]int, m.T.Size()),
+		dist:  make([]int, m.T.Size()),
 	}
 	for i := range cn.cells {
 		cn.cells[i] = -1
@@ -122,7 +125,7 @@ func (cn *Country) updateDist(at Location) {
 		q = nil
 		for _, loc := range cur {
 			dist := cn.dist[loc]
-			for _, cell := range cn.m.Neighbours(loc) {
+			for _, cell := range cn.T.Neighbours(loc) {
 				if cn.IsOwn(cell) && cn.dist[cell] > dist+1 && !cn.IsCenter(cell) {
 					cn.dist[cell] = dist + 1
 					cn.cells[cell] = cn.cells[loc]
@@ -178,7 +181,7 @@ func (cn *Country) join(what, with *Province) {
 
 func (cn *Country) updateConnections(loc Location) {
 	prov := cn.Prov(loc)
-	for _, cell := range cn.m.Neighbours(loc) {
+	for _, cell := range cn.T.Neighbours(loc) {
 		cur := cn.Prov(cell)
 		if cur == nil {
 			continue
@@ -211,7 +214,7 @@ func (cn *Country) AddCell(loc Location) {
 	}
 	minDist := -1
 	var bestProv *Province
-	for _, cell := range cn.m.Neighbours(loc) {
+	for _, cell := range cn.T.Neighbours(loc) {
 		if cn.IsOwn(cell) && (cn.dist[cell]+1 < minDist || bestProv == nil) {
 			bestProv = cn.Prov(cell)
 			minDist = cn.dist[cell] + 1
@@ -268,10 +271,11 @@ func (cn *Country) ProvByIndex(ind int) *Province {
 }
 
 func (cn *Country) PathSlow(from, to Location) (p Path) {
+	p = NewPath(cn.T, from)
 	if to == from {
-		return NewPath(from)
+		return
 	}
-	a := make([]int, cn.m.Rows*cn.m.Cols)
+	a := make([]int, cn.T.Size())
 	for i := range a {
 		a[i] = -1
 	}
@@ -298,12 +302,11 @@ func (cn *Country) PathSlow(from, to Location) (p Path) {
 		return nil
 	}
 	// Now, collect the path
-	p = NewPath(from)
 	cur := from
 	for cur != to {
-		for _, cell := range cn.m.Neighbours(cur) {
+		for _, cell := range cn.m.LandNeighbours(cur) {
 			if a[cell] == a[cur]-1 {
-				p.Append(GuessDir(cur, cell, cn.m.Cols), cn.m.Rows, cn.m.Cols)
+				p.Append(cn.T.GuessDir(cur, cell))
 				cur = cell
 				break
 			}
@@ -350,7 +353,7 @@ func (cn *Country) Update() {
 
 		for _, loc := range borders {
 			was := false
-			for _, cell := range cn.m.Neighbours(loc) {
+			for _, cell := range cn.T.Neighbours(loc) {
 				switch cn.m.Terrain[cell] {
 				case Unknown:
 					was = true
@@ -377,10 +380,10 @@ func (cn *Country) Dump(filename string) (err os.Error) {
 		return
 	}
 	defer f.Close()
-	for row := 0; row < cn.m.Rows; row++ {
-		for col := 0; col < cn.m.Cols; col++ {
+	for row := 0; row < cn.T.Rows; row++ {
+		for col := 0; col < cn.T.Cols; col++ {
 			ch := 'E'
-			cell := cn.m.Loc(row, col)
+			cell := cn.T.Loc(row, col)
 			switch cn.m.Terrain[cell] {
 			case Land:
 				switch {

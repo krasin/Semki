@@ -9,6 +9,7 @@ import (
 
 type MyBot struct {
 	p   Params
+	t   Torus
 	m   *Map
 	cn  *Country
 	gov *Goverment
@@ -17,7 +18,8 @@ type MyBot struct {
 func (b *MyBot) Init(p Params) (err os.Error) {
 	rand.Seed(p.PlayerSeed)
 	b.p = p
-	b.m = NewMap(p.Rows, p.Cols, p.ViewRadius2)
+	b.t = Torus{Rows: p.Rows, Cols: p.Cols}
+	b.m = NewMap(b.t, p.ViewRadius2)
 	return nil
 }
 
@@ -51,7 +53,7 @@ func (b *MyBot) DoTurn(input []Input) (orders []Order, err os.Error) {
 				if path.Len() == 0 {
 					continue
 				}
-				dir := path.Dir(0, b.m.Cols)
+				dir := path.Dir(0)
 				if b.m.CanMove(ant.Loc(turn), dir) {
 					b.m.Move(ant, dir)
 				}
@@ -66,7 +68,7 @@ func (b *MyBot) DoTurn(input []Input) (orders []Order, err os.Error) {
 				panic("Unable to find a path between an ant and food in the same prov")
 			}
 			if path.Len() > 0 {
-				dir := path.Dir(0, b.m.Cols)
+				dir := path.Dir(0)
 				if b.m.CanMove(ant.Loc(turn), dir) {
 					b.m.Move(ant, dir)
 				}
@@ -80,7 +82,7 @@ func (b *MyBot) DoTurn(input []Input) (orders []Order, err os.Error) {
 			toProv := b.cn.ProvByIndex(toInd)
 			path := b.cn.Path(ant.Loc(turn), toProv.Center)
 			if path.Len() > 0 {
-				dir := path.Dir(0, b.m.Cols)
+				dir := path.Dir(0)
 				if b.m.CanMove(ant.Loc(turn), dir) {
 					b.m.Move(ant, dir)
 					continue
@@ -101,11 +103,11 @@ func (b *MyBot) DoTurn(input []Input) (orders []Order, err os.Error) {
 	for _, ant := range b.m.MyLiveAnts {
 		if ant.HasLoc(turn + 1) {
 			// This ant has been moved
-			dir := GuessDir(ant.Loc(turn), ant.Loc(turn+1), b.m.Cols)
+			dir := b.t.GuessDir(ant.Loc(turn), ant.Loc(turn+1))
 			orders = append(orders,
 				Order{
-					Row: b.m.Row(ant.Loc(turn)),
-					Col: b.m.Col(ant.Loc(turn)),
+					Row: b.t.Row(ant.Loc(turn)),
+					Col: b.t.Col(ant.Loc(turn)),
 					Dir: dir,
 				})
 		}

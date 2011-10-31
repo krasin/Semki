@@ -8,6 +8,7 @@ GOFILES=\
 	main.go\
 	map.go\
 	path.go\
+	torus.go\
 	MyBot.go\
 
 include $(GOROOT)/src/Make.cmd

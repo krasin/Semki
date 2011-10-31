@@ -1,9 +1,5 @@
 package main
 
-import (
-	"fmt"
-)
-
 type Location int
 type ItemType int
 type Terrain int
@@ -41,9 +37,9 @@ type Items struct {
 	All []*Item
 }
 
-func NewItems(rows, cols int) *Items {
+func NewItems(t Torus) *Items {
 	return &Items{
-		At: make([][]*Item, rows*cols),
+		At: make([][]*Item, t.Size()),
 	}
 }
 
@@ -93,10 +89,9 @@ func (a *MyAnt) NewTurn(turn int) {
 }
 
 type Map struct {
+	T           Torus
 	Terrain     []Terrain
 	Items       []*Items
-	Rows        int
-	Cols        int
 	ViewMaskRow []int
 	ViewMaskCol []int
 	MyAnts      []*MyAnt
@@ -104,12 +99,11 @@ type Map struct {
 	Next        *Items
 }
 
-func NewMap(rows, cols int, viewRadius2 int) (m *Map) {
+func NewMap(t Torus, viewRadius2 int) (m *Map) {
 	m = &Map{
-		Rows:    rows,
-		Cols:    cols,
-		Terrain: make([]Terrain, cols*rows),
-		Items:   []*Items{NewItems(rows, cols)},
+		T:       t,
+		Terrain: make([]Terrain, t.Size()),
+		Items:   []*Items{NewItems(t)},
 	}
 	m.GenerateViewMask(viewRadius2)
 	return m
@@ -117,18 +111,6 @@ func NewMap(rows, cols int, viewRadius2 int) (m *Map) {
 
 func (m *Map) Turn() int {
 	return len(m.Items) - 1
-}
-
-func (m *Map) Loc(row, col int) Location {
-	return Loc(row, col, m.Cols)
-}
-
-func (m *Map) Row(loc Location) int {
-	return Row(loc, m.Cols)
-}
-
-func (m *Map) Col(loc Location) int {
-	return Col(loc, m.Cols)
 }
 
 func (m *Map) Food() (res []Location) {
@@ -149,10 +131,6 @@ func (m *Map) Enemy() (res []Location) {
 	return
 }
 
-func (m *Map) NewLoc(loc Location, d Direction) Location {
-	return NewLoc(loc, d, m.Rows, m.Cols)
-}
-
 func (m *Map) MyHills() (hills []*Item) {
 	for _, item := range m.Items[m.Turn()].All {
 		if item.What == Hill && item.Owner == Me {
@@ -160,59 +138,6 @@ func (m *Map) MyHills() (hills []*Item) {
 		}
 	}
 	return
-}
-
-func Loc(row, col, cols int) Location {
-	return Location(row*cols + col)
-}
-
-func Row(loc Location, cols int) int {
-	return int(loc) / cols
-}
-
-func Col(loc Location, cols int) int {
-	return int(loc) % cols
-}
-
-func GuessDir(from, to Location, cols int) Direction {
-	fromRow := Row(from, cols)
-	fromCol := Col(from, cols)
-	toRow := Row(to, cols)
-	toCol := Col(to, cols)
-
-	if fromRow == toRow { // West or East
-		if fromCol+1 == toCol || fromCol-1 != toCol && toCol == 0 {
-			return East
-		}
-		return West
-	}
-	if fromRow+1 == toRow || fromRow-1 != toRow && toRow == 0 {
-		return South
-	}
-	return North
-}
-
-func NewLoc(loc Location, d Direction, rows, cols int) Location {
-	row := Row(loc, cols)
-	col := Col(loc, cols)
-	switch d {
-	case North:
-		return Loc((row+rows-1)%rows, col, cols)
-	case South:
-		return Loc((row+1)%rows, col, cols)
-	case West:
-		return Loc(row, (col+cols-1)%cols, cols)
-	case East:
-		return Loc(row, (col+1)%cols, cols)
-
-	}
-	panic(fmt.Sprintf("Unknown direction: %d", d))
-}
-
-func ShiftLoc(loc Location, rowShift, colShift, rows, cols int) Location {
-	row := Row(loc, cols)
-	col := Col(loc, cols)
-	return Loc((row+rowShift+rows)%rows, (col+colShift+cols)%cols, cols)
 }
 
 func (m *Map) UpdateLiveAnts() {
@@ -247,9 +172,9 @@ func (m *Map) UpdateLiveAnts() {
 }
 
 func (m *Map) Update(input []Input) {
-	m.Items = append(m.Items, NewItems(m.Rows, m.Cols))
+	m.Items = append(m.Items, NewItems(m.T))
 	for _, in := range input {
-		loc := m.Loc(in.Row, in.Col)
+		loc := m.T.Loc(in.Row, in.Col)
 		switch in.What {
 		case Water:
 			m.Terrain[loc] = Water
@@ -268,7 +193,7 @@ func (m *Map) Update(input []Input) {
 			m.Items[m.Turn()].Add(loc, item)
 		}
 	}
-	m.Next = NewItems(m.Rows, m.Cols)
+	m.Next = NewItems(m.T)
 	m.UpdateLiveAnts()
 	m.UpdateVisibility()
 }
@@ -297,7 +222,7 @@ func (m *Map) GenerateViewMask(viewRadius2 int) {
 func (m *Map) UpdateVisibility() {
 	for _, ant := range m.MyLiveAnts {
 		for i := 0; i < len(m.ViewMaskRow); i++ {
-			loc2 := ShiftLoc(ant.Loc(m.Turn()), m.ViewMaskRow[i], m.ViewMaskCol[i], m.Rows, m.Cols)
+			loc2 := m.T.ShiftLoc(ant.Loc(m.Turn()), m.ViewMaskRow[i], m.ViewMaskCol[i])
 			if m.Terrain[loc2] == Unknown {
 				m.Terrain[loc2] = Land
 			}
@@ -306,29 +231,20 @@ func (m *Map) UpdateVisibility() {
 }
 
 func (m *Map) CanMove(loc Location, d Direction) bool {
-	newLoc := m.NewLoc(loc, d)
+	newLoc := m.T.NewLoc(loc, d)
 	return m.Terrain[newLoc] != Water &&
 		m.Items[m.Turn()].CanEnter(newLoc) &&
 		m.Next.CanEnter(newLoc)
 }
 
 func (m *Map) Move(ant *MyAnt, d Direction) {
-	newLoc := m.NewLoc(ant.Loc(m.Turn()), d)
+	newLoc := m.T.NewLoc(ant.Loc(m.Turn()), d)
 	m.Next.Add(newLoc, &Item{What: Ant, Owner: Me, Loc: newLoc})
 	ant.Locs = append(ant.Locs, newLoc)
 }
 
 func (m *Map) Discovered(loc Location) bool {
 	return m.Terrain[loc] != Unknown
-}
-
-func (m *Map) Neighbours(loc Location) []Location {
-	return []Location{
-		m.NewLoc(loc, North),
-		m.NewLoc(loc, East),
-		m.NewLoc(loc, South),
-		m.NewLoc(loc, West),
-	}
 }
 
 func (m *Map) LandNeighbours(loc Location) (res []Location) {
@@ -338,7 +254,7 @@ func (m *Map) LandNeighbours(loc Location) (res []Location) {
 		}
 	}
 	for _, dir := range Dirs {
-		f(m.NewLoc(loc, dir))
+		f(m.T.NewLoc(loc, dir))
 	}
 	return
 }

@@ -1,9 +1,9 @@
 package main
 
 type Path interface {
-	Append(dir Direction, rows, cols int)
+	Append(dir Direction)
 	Len() int
-	Dir(ind int, cols int) Direction
+	Dir(ind int) Direction
 }
 
 // Encodes up to 27 moves
@@ -33,15 +33,19 @@ func (p storedPath) Dir(ind int, cols int) Direction {
 }
 
 type path struct {
+	t Torus
 	l []Location
 }
 
-func NewPath(from Location) Path {
-	return &path{l: []Location{from}}
+func NewPath(t Torus, from Location) Path {
+	return &path{
+		t: t,
+		l: []Location{from},
+	}
 }
 
-func (p *path) Append(dir Direction, rows, cols int) {
-	loc := NewLoc(p.l[len(p.l)-1], dir, rows, cols)
+func (p *path) Append(dir Direction) {
+	loc := p.t.NewLoc(p.l[len(p.l)-1], dir)
 	p.l = append(p.l, loc)
 }
 
@@ -52,6 +56,6 @@ func (p *path) Len() int {
 	return len(p.l) - 1
 }
 
-func (p *path) Dir(ind int, cols int) Direction {
-	return GuessDir(p.l[ind], p.l[ind+1], cols)
+func (p *path) Dir(ind int) Direction {
+	return p.t.GuessDir(p.l[ind], p.l[ind+1])
 }
