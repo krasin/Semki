@@ -8,6 +8,7 @@ GOFILES=\
 	main.go\
 	map.go\
 	path.go\
+	tasks.go\
 	torus.go\
 	MyBot.go\
 

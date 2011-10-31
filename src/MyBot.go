@@ -7,6 +7,8 @@ import (
 	"rand"
 )
 
+const FoodScore = 1000
+
 type MyBot struct {
 	p   Params
 	t   Torus
@@ -23,6 +25,27 @@ func (b *MyBot) Init(p Params) (err os.Error) {
 	return nil
 }
 
+type MyEstimator struct {
+
+}
+
+func (e *MyEstimator) Estimate(w *Worker, loc Location) int {
+	return 1
+}
+
+func (b *MyBot) Plan() []Assignment {
+	est := new(MyEstimator)
+	p := NewPlanner(est)
+	for _, ant := range b.m.MyLiveAnts {
+		loc := ant.Loc(b.m.Turn())
+		p.AddWorker(&Worker{loc: loc})
+	}
+	for _, food := range b.m.Food() {
+		p.AddTarget(food, FoodScore)
+	}
+	return p.MakePlan()
+}
+
 func (b *MyBot) DoTurn(input []Input) (orders []Order, err os.Error) {
 	b.m.Update(input)
 	if b.cn == nil {
@@ -35,6 +58,7 @@ func (b *MyBot) DoTurn(input []Input) (orders []Order, err os.Error) {
 	} else {
 		b.gov.Update()
 	}
+	_ = b.Plan()
 
 	turn := b.m.Turn()
 	for provInd, rep := range b.gov.TurnRep {
