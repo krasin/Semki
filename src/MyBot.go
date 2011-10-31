@@ -83,10 +83,17 @@ func (b *MyBot) DoTurn(input []Input) (orders []Order, err os.Error) {
 		if len(rep.MyLiveAnts) == 0 {
 			continue
 		}
+		// Enemies
 		if len(rep.Enemy) > 0 {
 			closerProv := b.cn.CloserProv(prov)
 			for _, ant := range rep.MyLiveAnts {
 				path := b.cn.Path(ant.Loc(turn), closerProv.Center)
+				if path == nil {
+					panic("Unable to find a path between an ant and the center of a closer prov")
+				}
+				if path.Len() == 0 {
+					continue
+				}
 				dir := path.Dir(0, b.m.Cols)
 				if b.m.CanMove(ant.Loc(turn), dir) {
 					b.m.Move(ant, dir)
@@ -94,9 +101,45 @@ func (b *MyBot) DoTurn(input []Input) (orders []Order, err os.Error) {
 			}
 			continue
 		}
+		// Harvest
+		if len(rep.Food) > 0 {
+			ant := rep.MyLiveAnts[0]
+			path := b.cn.Path(ant.Loc(turn), rep.Food[0])
+			if path == nil {
+				panic("Unable to find a path between an ant and food in the same prov")
+			}
+			if path.Len() > 0 {
+				dir := path.Dir(0, b.m.Cols)
+				if b.m.CanMove(ant.Loc(turn), dir) {
+					b.m.Move(ant, dir)
+				}
+			}
+			continue
+		}
+		// Discover: move to any adjacent province
+		if len(prov.Conn) > 0 {
+			ant := rep.MyLiveAnts[0]
+			toInd := prov.Conn[rand.Intn(len(prov.Conn))]
+			toProv := b.cn.ProvByIndex(toInd)
+			path := b.cn.Path(ant.Loc(turn), toProv.Center)
+			if path.Len() > 0 {
+				dir := path.Dir(0, b.m.Cols)
+				if b.m.CanMove(ant.Loc(turn), dir) {
+					b.m.Move(ant, dir)
+					continue
+				}
+			}
+		}
+		// Discover: random move
+		dir := Dirs[rand.Intn(4)]
+		ant := rep.MyLiveAnts[0]
+		if b.m.CanMove(ant.Loc(turn), dir) {
+			b.m.Move(ant, dir)
+		}
+
 	}
 
-	//	b.cn.Dump("/tmp/country.txt")
+	b.cn.Dump("/tmp/country.txt")
 
 	//	r := b.GenerateRichman()
 

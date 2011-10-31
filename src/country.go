@@ -57,10 +57,23 @@ func (p StoredPath) Dir(ind int) Direction {
 	return PathCodeToDirection(code)
 }
 
-type Path []Location
+type Path struct {
+	l []Location
+}
 
-func (p Path) Dir(ind int, cols int) Direction {
-	return GuessDir(p[ind], p[ind+1], cols)
+func (p *Path) Append(loc Location) {
+	p.l = append(p.l, loc)
+}
+
+func (p *Path) Len() int {
+	if len(p.l) == 0 {
+		return 0
+	}
+	return len(p.l) - 1
+}
+
+func (p *Path) Dir(ind int, cols int) Direction {
+	return GuessDir(p.l[ind], p.l[ind+1], cols)
 }
 
 type Province struct {
@@ -299,13 +312,56 @@ func (cn *Country) ProvByIndex(ind int) *Province {
 	return &cn.prov[ind]
 }
 
-func (cn *Country) PathSlow(from, to Location) Path {
-	panic("PathSlow is not implemented")
+func (cn *Country) PathSlow(from, to Location) (p *Path) {
+	if to == from {
+		p = new(Path)
+		p.Append(from)
+	}
+	a := make([]int, cn.m.Rows*cn.m.Cols)
+	for i := range a {
+		a[i] = -1
+	}
+	a[to] = 0
+	q := []Location{to}
+	var q2 []Location
+	for len(q) > 0 {
+		tmp := q2
+		q2 = q
+		q = tmp[:0]
+		for _, loc := range q2 {
+			for _, cell := range cn.m.Neighbours(loc) {
+				if a[cell] == -1 {
+					a[cell] = a[loc] + 1
+					q = append(q, cell)
+				}
+				if cell == from {
+					break
+				}
+			}
+		}
+	}
+	if a[from] == -1 {
+		return nil
+	}
+	// Now, collect the path
+	p = new(Path)
+	cur := from
+	for cur != to {
+		p.Append(cur)
+		for _, cell := range cn.m.Neighbours(cur) {
+			if a[cell] == a[cur]-1 {
+				cur = cell
+				break
+			}
+		}
+	}
+	p.Append(to)
+	return
 }
 
 // Path returns an approximately shortest path between two location.
 // Returns nil if there's no path found
-func (cn *Country) Path(from, to Location) Path {
+func (cn *Country) Path(from, to Location) *Path {
 	fromProv := cn.Prov(from)
 	toProv := cn.Prov(to)
 	if fromProv == nil || toProv == nil {
@@ -314,9 +370,15 @@ func (cn *Country) Path(from, to Location) Path {
 	if fromProv == toProv {
 		// These locations are in one province.
 		// It's faster to find the real shortest path
-		return cn.PathSlow(from, to)
+		p := cn.PathSlow(from, to)
+		if p == nil {
+			// This is a bug: we can't find a path between two cells in one province
+			panic("PathSlow is unable to find a path between two cells in one province. This is a programmer's mistake!")
+		}
 	}
-	panic("Path not implemented")
+	// Use a slow implementation for now
+	return cn.PathSlow(from, to)
+	//	panic("Path not implemented")
 }
 
 func (cn *Country) IsOwn(loc Location) bool {
