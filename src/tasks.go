@@ -63,29 +63,6 @@ func (p *Planner) scoreAssignment(w *Worker, loc Location, score int) int {
 	return score / (1 + estimate)
 }
 
-func (p *Planner) AddAssignedWorker(w *Worker, loc Location, score int) {
-	wInd := len(p.worker)
-	p.worker = append(p.worker, w)
-	// TODO: enable when the proper support of assigned works is implemented
-	//	p.workerByProv[w.Prov] = append(p.workerByProv[w.Prov], wInd)
-
-	assignScore := p.scoreAssignment(w, loc, score)
-	if assignScore == -1 {
-		// Impossible to achieve
-		return
-	}
-
-	tInd := len(p.target)
-
-	// We don't want to reassign this target to anyone else, so score=0
-	// Rationale: it's likely that we have a duplicate of the same target
-	// with some score. This fake target is to represent assigned worker with 
-	// some specific score to this assignment
-	p.target = append(p.target, Target{Loc: loc, Score: 0})
-
-	p.assign = append(p.assign, internalAssignment{worker: wInd, target: tInd, score: assignScore})
-}
-
 type TargetsDescSlice struct {
 	p           *Planner
 	targetsDesc []int
