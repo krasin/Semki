@@ -5,6 +5,7 @@ GOFILES=\
 	ants.go\
 	country.go\
 	goverment.go\
+	locset.go\
 	main.go\
 	map.go\
 	path.go\
