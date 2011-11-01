@@ -105,7 +105,7 @@ func (cn *Country) addProvince(center Location) {
 }
 
 func (cn *Country) IsCenter(loc Location) bool {
-	return cn.IsOwn(loc) && cn.prov[cn.cells[loc]].Center == loc
+	return cn.IsOwn(loc) && cn.Prov(loc).Center == loc
 }
 
 func (cn *Country) Prov(loc Location) (prov *Province) {
