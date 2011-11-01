@@ -66,6 +66,15 @@ func (it *Items) HasAntAt(loc Location, owner int) bool {
 	return false
 }
 
+func (it *Items) HasHillAt(loc Location) bool {
+	for _, item := range it.At[loc] {
+		if item.What == Hill {
+			return true
+		}
+	}
+	return false
+}
+
 type MyAnt struct {
 	Locs   []Location
 	BornAt int
@@ -266,4 +275,8 @@ func (m *Map) LandNeighbours(loc Location) (res []Location) {
 		f(m.T.NewLoc(loc, dir))
 	}
 	return
+}
+
+func (m *Map) HasHillAt(loc Location) bool {
+	return m.Items[m.Turn()].HasHillAt(loc)
 }

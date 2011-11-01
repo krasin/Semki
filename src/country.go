@@ -48,6 +48,10 @@ func (p *Province) ConnectedWith(ind int) bool {
 	return false
 }
 
+func (p *Province) Live() bool {
+	return p.Size > 0
+}
+
 type Country struct {
 	T Torus
 
@@ -109,7 +113,7 @@ func (cn *Country) Prov(loc Location) (prov *Province) {
 		return nil
 	}
 	prov = &cn.prov[cn.cells[loc]]
-	for prov.Size == 0 {
+	for !prov.Live() {
 		prov = &cn.prov[cn.cells[prov.Center]]
 
 		// This is intended: we hope to cut the length of chain by 2, not by 1

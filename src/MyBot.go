@@ -7,7 +7,8 @@ import (
 	"rand"
 )
 
-const FoodScore = 1000
+const FoodScore = 100000
+const VisitScore = 1000
 
 type MyBot struct {
 	p   Params
@@ -54,6 +55,16 @@ func (b *MyBot) Plan() []Assignment {
 	for _, food := range b.m.Food() {
 		if b.cn.IsOwn(food) {
 			p.AddTarget(food, FoodScore)
+		}
+	}
+	for i := 0; i < b.cn.ProvCount(); i++ {
+		prov := b.cn.ProvByIndex(i)
+		if !prov.Live() || b.m.HasHillAt(prov.Center) {
+			continue
+		}
+		age := b.m.Turn() - b.m.LastVisited[prov.Center]
+		if age > 0 {
+			p.AddTarget(prov.Center, age*VisitScore)
 		}
 	}
 	return p.MakePlan()
