@@ -96,14 +96,16 @@ type Map struct {
 	ViewMaskCol []int
 	MyAnts      []*MyAnt
 	MyLiveAnts  []*MyAnt
+	LastVisited []int
 	Next        *Items
 }
 
 func NewMap(t Torus, viewRadius2 int) (m *Map) {
 	m = &Map{
-		T:       t,
-		Terrain: make([]Terrain, t.Size()),
-		Items:   []*Items{NewItems(t)},
+		T:           t,
+		Terrain:     make([]Terrain, t.Size()),
+		Items:       []*Items{NewItems(t)},
+		LastVisited: make([]int, t.Size()),
 	}
 	m.GenerateViewMask(viewRadius2)
 	return m
@@ -196,6 +198,7 @@ func (m *Map) Update(input []Input) {
 	m.Next = NewItems(m.T)
 	m.UpdateLiveAnts()
 	m.UpdateVisibility()
+	m.UpdateLastVisited()
 }
 
 func (m *Map) GenerateViewMask(viewRadius2 int) {
@@ -227,6 +230,12 @@ func (m *Map) UpdateVisibility() {
 				m.Terrain[loc2] = Land
 			}
 		}
+	}
+}
+
+func (m *Map) UpdateLastVisited() {
+	for _, ant := range m.MyLiveAnts {
+		m.LastVisited[ant.Loc(m.Turn())] = m.Turn()
 	}
 }
 
