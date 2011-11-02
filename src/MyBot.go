@@ -68,8 +68,8 @@ func (s *MyLocatedSet) All() (res []Location) {
 	return
 }
 
-func (s *MyLocatedSet) FindNear(at Location, ok func(Location) bool) (Location, bool) {
-	if ant := s.m.MyLiveAntAt(at); ant != nil && ok(at) {
+func (s *MyLocatedSet) FindNear(at Location, score int, ok func(Location, int) bool) (Location, bool) {
+	if ant := s.m.MyLiveAntAt(at); ant != nil && ok(at, score) {
 		return at, true
 	}
 	prov := s.cn.Prov(at)
@@ -85,7 +85,7 @@ func (s *MyLocatedSet) FindNear(at Location, ok func(Location) bool) (Location, 
 		q, q2 = q2[:0], q
 		for _, prov := range q2 {
 			for _, w := range s.locsByProv.Get(prov.Center) {
-				if ok(w) {
+				if ok(w, score) {
 					return w, true
 				}
 				count++

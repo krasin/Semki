@@ -4,13 +4,15 @@ import (
 	"sort"
 )
 
+const ReassignThresholdRatio = 1.5
+
 type Locator interface {
 	Dist(from, to Location) int
 }
 
 type LocatedSet interface {
 	All() []Location
-	FindNear(loc Location, ok func(loc Location) bool) (Location, bool)
+	FindNear(loc Location, score int, ok func(loc Location, score int) bool) (Location, bool)
 }
 
 type Assignment struct {
@@ -26,7 +28,7 @@ type Planner interface {
 type greedyPlanner struct {
 	size            int
 	assignedTargets LocSet
-	assignedWorkers LocSet
+	assignedWorkers LocIntMap
 }
 
 type combineSortInterface struct {
@@ -66,13 +68,13 @@ func (p *greedyPlanner) Plan(l Locator, prev []Assignment, workerSet LocatedSet,
 	p.assignedWorkers.Clear()
 	for _, assign := range prev {
 		p.assignedTargets.Add(assign.Target)
-		p.assignedWorkers.Add(assign.Worker)
+		p.assignedWorkers.Add(assign.Worker, assign.Score)
 		res = append(res, assign)
 	}
 
 	// Filter assigned workers
 	for i := 0; i < len(workers); i++ {
-		if p.assignedWorkers.Has(workers[i]) {
+		if p.assignedWorkers.Get(workers[i]) > 0 {
 			workers[i] = workers[len(workers)-1]
 			workers = workers[0 : len(workers)-1]
 			i--
@@ -94,8 +96,10 @@ func (p *greedyPlanner) Plan(l Locator, prev []Assignment, workerSet LocatedSet,
 
 	for i, t := range targets {
 		// Find closest unassigned worker
-		w, found := workerSet.FindNear(t, func(loc Location) bool {
-			return !p.assignedWorkers.Has(loc)
+		w, found := workerSet.FindNear(t, scores[i], func(loc Location, score int) bool {
+			ascore := p.assignedWorkers.Get(loc)
+			return ascore == 0 || int(float64(ascore)*ReassignThresholdRatio) < score
+
 		})
 		if !found {
 			// There's no available workers for this target
@@ -106,7 +110,7 @@ func (p *greedyPlanner) Plan(l Locator, prev []Assignment, workerSet LocatedSet,
 			continue
 		}
 		res = append(res, Assignment{Worker: w, Target: t, Score: scores[i]})
-		p.assignedWorkers.Add(w)
+		p.assignedWorkers.Add(w, scores[i])
 		p.assignedTargets.Add(t)
 	}
 
@@ -116,6 +120,6 @@ func (p *greedyPlanner) Plan(l Locator, prev []Assignment, workerSet LocatedSet,
 func NewGreedyPlanner(size int) Planner {
 	return &greedyPlanner{size: size,
 		assignedTargets: NewLocSet(size),
-		assignedWorkers: NewLocSet(size),
+		assignedWorkers: NewLocIntMap(size),
 	}
 }
