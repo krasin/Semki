@@ -76,6 +76,7 @@ type Country struct {
 	// and adding them to the provinces
 	borders []Location
 
+	pathSlow_used     LocIntMap
 	provPath_provUsed LocIntMap
 }
 
@@ -86,6 +87,7 @@ func NewCountry(m *Map) (cn *Country) {
 		m:                 m,
 		cells:             make([]int, m.T.Size()),
 		dist:              make([]int, m.T.Size()),
+		pathSlow_used:     NewLocIntMap(m.T.Size()),
 		provPath_provUsed: NewLocIntMap(m.T.Size()),
 	}
 	for i := range cn.cells {
@@ -283,11 +285,9 @@ func (cn *Country) PathSlow(from, to Location) (p Path) {
 	if to == from {
 		return
 	}
-	a := make([]int, cn.T.Size())
-	for i := range a {
-		a[i] = -1
-	}
-	a[to] = 0
+	a := cn.pathSlow_used
+	a.Clear()
+	a.Add(to, 1)
 	q := []Location{to}
 	var q2 []Location
 	for len(q) > 0 {
@@ -296,8 +296,8 @@ func (cn *Country) PathSlow(from, to Location) (p Path) {
 		q = tmp[:0]
 		for _, loc := range q2 {
 			for _, cell := range cn.m.LandNeighbours(loc) {
-				if a[cell] == -1 {
-					a[cell] = a[loc] + 1
+				if a.Get(cell) == 0 {
+					a.Add(cell, a.Get(loc)+1)
 					q = append(q, cell)
 				}
 				if cell == from {
@@ -306,14 +306,14 @@ func (cn *Country) PathSlow(from, to Location) (p Path) {
 			}
 		}
 	}
-	if a[from] == -1 {
+	if a.Get(from) == 0 {
 		return nil
 	}
 	// Now, collect the path
 	cur := from
 	for cur != to {
 		for _, cell := range cn.m.LandNeighbours(cur) {
-			if a[cell] == a[cur]-1 {
+			if a.Get(cell) == a.Get(cur)-1 {
 				p.Append(cn.T.GuessDir(cur, cell))
 				cur = cell
 				break
@@ -324,7 +324,9 @@ func (cn *Country) PathSlow(from, to Location) (p Path) {
 }
 
 func (cn *Country) ProvPath(fromProv, toProv *Province) (res []*Province) {
+	fmt.Fprintf(os.Stderr, "ProvPath, 0\n")
 	if fromProv == toProv {
+		fmt.Fprintf(os.Stderr, "ProvPath, exit, trivial case\n")
 		return
 	}
 	used := cn.provPath_provUsed
@@ -335,30 +337,40 @@ func (cn *Country) ProvPath(fromProv, toProv *Province) (res []*Province) {
 	for len(q) > 0 {
 		q, q2 = q2[:0], q
 		for _, loc := range q2 {
-			val := used.Get(loc)
 			if loc == fromProv.Center {
 				// Collect path
+				fmt.Fprintf(os.Stderr, "Collecting path...\n")
 				res = append(res, fromProv)
 				cur := fromProv
+				val := used.Get(loc)
+				if val == 0 {
+					panic("val == 0")
+				}
 
 				for cur != toProv {
+					found := false
 					for _, ind := range cur.Conn {
 						cell := cn.ProvByIndex(ind).Center
 						if used.Get(cell) == val-1 {
+							found = true
 							cur = cn.Prov(cell)
 							res = append(res, cur)
 							val--
 							break
 						}
 					}
+					if !found {
+						panic("not found")
+					}
 				}
+				fmt.Fprintf(os.Stderr, "ProvPath, exit, found\n")
 				return
 			}
 			for _, ind := range cn.Prov(loc).Conn {
 				cell := cn.ProvByIndex(ind).Center
 				if used.Get(cell) == 0 {
 					q = append(q, cell)
-					used.Add(cell, val+1)
+					used.Add(cell, used.Get(loc)+1)
 				}
 			}
 		}
