@@ -23,6 +23,7 @@ type MyBot struct {
 	gov        *Goverment
 	locsByProv LocListMap
 	locSet     LocSet
+	perf       *Timing
 }
 
 func (b *MyBot) Init(p Params) (err os.Error) {
@@ -155,8 +156,10 @@ func (b *MyBot) Plan() {
 	}
 
 	fmt.Fprintf(os.Stderr, "scores: %v\n", scores)
+	b.perf.Log("Prepare data for planner")
 
 	plan := p.Plan(l, prev, NewMyLocatedSet(b.m, b.cn, workers, b.locSet, b.locsByProv), targets, scores)
+	b.perf.Log("Planner")
 	fmt.Fprintf(os.Stderr, "plan = %v\n", plan)
 	for _, assign := range plan {
 		ant := b.m.MyLiveAntAt(assign.Worker)
@@ -167,6 +170,7 @@ func (b *MyBot) Plan() {
 		ant.Target = assign.Target
 		ant.Score = assign.Score
 	}
+	b.perf.Log("Finding paths")
 	return
 }
 
@@ -192,27 +196,26 @@ func (t *Timing) Total() {
 }
 
 func (b *MyBot) DoTurn(input []Input) (orders []Order, err os.Error) {
-	perf := NewTiming()
+	b.perf = NewTiming()
 	b.m.Update(input)
-	perf.Log("Map update")
+	b.perf.Log("Map update")
 
 	if b.cn == nil {
 		b.cn = NewCountry(b.m)
 	} else {
 		b.cn.Update()
 	}
-	perf.Log("Country update")
+	b.perf.Log("Country update")
 	if b.gov == nil {
 		b.gov = NewGoverment(b.cn, b.m)
 	} else {
 		b.gov.Update()
 	}
-	perf.Log("Goverment update")
+	b.perf.Log("Goverment update")
 	b.cn.Dump("/tmp/country.txt")
-	perf.Log("Map dump")
+	b.perf.Log("Map dump")
 
 	b.Plan()
-	perf.Log("Plan")
 
 	turn := b.m.Turn()
 	for provInd, rep := range b.gov.TurnRep {
@@ -235,10 +238,10 @@ func (b *MyBot) DoTurn(input []Input) (orders []Order, err os.Error) {
 			continue
 		}
 	}
-	perf.Log("Withdrawal from enemies")
+	b.perf.Log("Withdrawal from enemies")
 
 	b.m.MoveAnts()
-	perf.Log("MoveAnts")
+	b.perf.Log("MoveAnts")
 
 	for _, ant := range b.m.MyLiveAnts {
 		if ant.HasLoc(turn + 1) {
@@ -253,7 +256,7 @@ func (b *MyBot) DoTurn(input []Input) (orders []Order, err os.Error) {
 				})
 		}
 	}
-	perf.Log("Generate output")
-	perf.Total()
+	b.perf.Log("Generate output")
+	b.perf.Total()
 	return
 }
