@@ -12,11 +12,12 @@ const VisitScore = 1000
 const NeverVisitedScore = 100000
 
 type MyBot struct {
-	p   Params
-	t   Torus
-	m   *Map
-	cn  *Country
-	gov *Goverment
+	p    Params
+	t    Torus
+	m    *Map
+	cn   *Country
+	gov  *Goverment
+	plan []MyAssignment
 }
 
 func (b *MyBot) Init(p Params) (err os.Error) {
@@ -33,6 +34,12 @@ type myLocator struct {
 
 func (l *myLocator) Dist(from, to Location) int {
 	panic("myLocator.Dist is not implemented")
+}
+
+type MyAssignment struct {
+	Ant    *MyAnt
+	Target Location
+	Score  int
 }
 
 type MyLocatedSet struct {
@@ -54,7 +61,7 @@ func (s *MyLocatedSet) FindNear(at Location, ok func(Location) bool) (Location, 
 	return 0, false
 }
 
-func (b *MyBot) Plan(prev []Assignment) []Assignment {
+func (b *MyBot) Plan(myPrev []MyAssignment) (myPlan []MyAssignment) {
 	l := &myLocator{cn: b.cn}
 	p := NewGreedyPlanner(b.t.Size())
 	var workers []Location
@@ -89,7 +96,23 @@ func (b *MyBot) Plan(prev []Assignment) []Assignment {
 			addTarget(prov.Center, score)
 		}
 	}
-	return p.Plan(l, prev, &MyLocatedSet{workers}, targets, scores)
+	var prev []Assignment
+	for _, myAssign := range myPrev {
+		prev = append(prev, Assignment{
+			Worker: myAssign.Ant.Loc(b.m.Turn()),
+			Target: myAssign.Target,
+			Score:  myAssign.Score,
+		})
+	}
+	plan := p.Plan(l, prev, &MyLocatedSet{workers}, targets, scores)
+	for _, assign := range plan {
+		myPlan = append(myPlan, MyAssignment{
+			Ant:    b.m.MyLiveAntAt(assign.Worker),
+			Target: assign.Target,
+			Score:  assign.Score,
+		})
+	}
+	return
 }
 
 func (b *MyBot) DoTurn(input []Input) (orders []Order, err os.Error) {
@@ -104,7 +127,7 @@ func (b *MyBot) DoTurn(input []Input) (orders []Order, err os.Error) {
 	} else {
 		b.gov.Update()
 	}
-	plan := b.Plan(nil)
+	b.plan = b.Plan(b.plan)
 
 	turn := b.m.Turn()
 	for provInd, rep := range b.gov.TurnRep {
@@ -132,10 +155,10 @@ func (b *MyBot) DoTurn(input []Input) (orders []Order, err os.Error) {
 		}
 	}
 
-	fmt.Fprintf(os.Stderr, "turn: %d, plan: %v\n", turn, plan)
-	for _, assignment := range plan {
-		ant := b.m.MyLiveAntAt(assignment.Worker)
-		path := b.cn.Path(ant.Loc(turn), assignment.Target)
+	fmt.Fprintf(os.Stderr, "turn: %d, plan: %v\n", turn, b.plan)
+	for _, assign := range b.plan {
+		ant := assign.Ant
+		path := b.cn.Path(ant.Loc(turn), assign.Target)
 		fmt.Fprintf(os.Stderr, "Path: %v\n", path)
 		if path.Len() == 0 {
 			continue
