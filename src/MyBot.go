@@ -13,6 +13,8 @@ const VisitScore = 1000
 const NeverVisitedScore = 100000
 const EnemyWithdrawalScore = 2000
 
+const MaxFindNearCount = 10
+
 type MyBot struct {
 	p          Params
 	t          Torus
@@ -76,12 +78,17 @@ func (s *MyLocatedSet) FindNear(at Location, ok func(Location) bool) (Location, 
 	s.locSet.Add(prov.Center)
 	q := []*Province{prov}
 	var q2 []*Province
+	count := 0
 	for len(q) > 0 {
 		q, q2 = q2[:0], q
 		for _, prov := range q2 {
 			for _, w := range s.locsByProv.Get(prov.Center) {
 				if ok(w) {
 					return w, true
+				}
+				count++
+				if count > MaxFindNearCount {
+					return 0, false
 				}
 			}
 			for _, other := range prov.Conn {
