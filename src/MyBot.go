@@ -69,34 +69,45 @@ func (l *fairPathLocator) bigIndex(from, to Location) int {
 }
 
 func (l *fairPathLocator) set(from, to Location, dist int) {
-	l.big[l.bigIndex(from, to)] = int16(dist)
+	fmt.Printf("set(%d, %d, dist=%d)\n", from, to, dist)
+	ind := l.bigIndex(from, to)
+	fmt.Printf("ind: %d\n", ind)
+	l.big[ind] = int16(dist)
 }
 
 // Update distances for loc looking at from
 func (l *fairPathLocator) updatePair(loc, from Location) {
 	was := false
+	if loc == from {
+		return
+	}
 	for i := 0; i < len(l.ind2loc); i++ {
 		to := l.ind2loc[i]
-		if to == loc || to == from {
+		if to == loc || to == from || !l.hasLoc(to) {
 			continue
 		}
 		curDist := l.Dist(loc, to)
 		newDist := l.Dist(from, to)
-		if curDist == 0 || newDist+1 < curDist {
+		if newDist != NoPath && newDist+1 < curDist {
 			l.set(loc, to, newDist+1)
 			was = true
 		}
 	}
 	if was {
 		for _, conn := range l.conn.Conn(loc) {
-			if conn != from {
+			if conn != from && l.hasLoc(conn) {
 				l.toUpdate = append(l.toUpdate, locPair{conn, loc})
 			}
 		}
 	}
 }
 
+func (l *fairPathLocator) NeedUpdate() bool {
+	return len(l.toUpdate) > 0
+}
+
 func (l *fairPathLocator) Add(loc Location) {
+	fmt.Printf("Add(%d)\n", loc)
 	if l.hasLoc(loc) {
 		return
 	}
@@ -110,6 +121,7 @@ func (l *fairPathLocator) Add(loc Location) {
 		}
 		l.set(loc, conn, 1)
 		l.toUpdate = append(l.toUpdate, locPair{loc, conn})
+		l.toUpdate = append(l.toUpdate, locPair{conn, loc})
 	}
 }
 
