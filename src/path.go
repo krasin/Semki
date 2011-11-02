@@ -68,3 +68,12 @@ func (p *path) Len() int {
 func (p *path) Dir(ind int) Direction {
 	return p.t.GuessDir(p.l[ind], p.l[ind+1])
 }
+
+func AppendPath(dest, source Path) {
+	if source == nil {
+		return
+	}
+	for i := 0; i < source.Len(); i++ {
+		dest.Append(source.Dir(i))
+	}
+}

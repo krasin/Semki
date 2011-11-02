@@ -319,6 +319,10 @@ func (cn *Country) PathSlow(from, to Location) (p Path) {
 	return
 }
 
+func (cn *Country) ProvPath(fromProv, toProv *Province) []*Province {
+	panic("ProvPath not implemented")
+}
+
 // Path returns an approximately shortest path between two location.
 // Returns nil if there's no path found
 func (cn *Country) Path(from, to Location) Path {
@@ -336,8 +340,17 @@ func (cn *Country) Path(from, to Location) Path {
 			panic("PathSlow is unable to find a path between two cells in one province. This is a programmer's mistake!")
 		}
 	}
-	// Use a slow implementation for now
-	return cn.PathSlow(from, to)
+
+	provPath := cn.ProvPath(fromProv, toProv)
+	path := cn.PathSlow(from, fromProv.Center)
+	for i := range provPath {
+		if i == 0 {
+			continue
+		}
+		AppendPath(path, cn.PathSlow(provPath[i-1].Center, provPath[i].Center))
+	}
+	AppendPath(path, cn.PathSlow(toProv.Center, to))
+	return path
 	//	panic("Path not implemented")
 }
 
