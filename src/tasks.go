@@ -4,131 +4,113 @@ import (
 	"sort"
 )
 
-type Target struct {
-	Loc   Location
-	Score int
+type Locator interface {
+	Dist(from, to Location) int
 }
 
-type Worker struct {
-	Loc     Location
-	LiveInd int
-	Prov    int
-}
-
-type Estimator interface {
-	Estimate(w *Worker, loc Location) int
-	Prov(loc Location) int
-	Conn(prov int) []int
-}
-
-type Planner struct {
-	est          Estimator
-	worker       []*Worker
-	workerByProv [][]int
-	target       []Target
-	assign       []internalAssignment
-	score        int
+type LocatedSet interface {
+	All() []Location
+	FindNear(loc Location, ok func(loc Location) bool) (Location, bool)
 }
 
 type Assignment struct {
-	Worker *Worker
-	Target Target
+	Worker Location
+	Target Location
+	Score  int
 }
 
-type internalAssignment struct {
-	worker int
-	target int
-	score  int
+type Planner interface {
+	Plan(l Locator, prev []Assignment, workerSet LocatedSet, targets []Location, scores []int) []Assignment
 }
 
-func NewPlanner(est Estimator, provCount int) *Planner {
-	return &Planner{est: est, workerByProv: make([][]int, provCount)}
+type greedyPlanner struct {
+	size            int
+	assignedTargets LocSet
+	assignedWorkers LocSet
 }
 
-func (p *Planner) AddWorker(w *Worker) {
-	ind := len(p.worker)
-	p.worker = append(p.worker, w)
-	p.workerByProv[w.Prov] = append(p.workerByProv[w.Prov], ind)
+type combineSortInterface struct {
+	targets []Location
+	scores  []int
 }
 
-func (p *Planner) AddTarget(loc Location, score int) {
-	p.target = append(p.target, Target{Loc: loc, Score: score})
+type sorter struct {
+	targets []Location
+	scores  []int
 }
 
-func (p *Planner) scoreAssignment(w *Worker, loc Location, score int) int {
-	estimate := p.est.Estimate(w, loc)
-	if estimate == -1 {
-		return -1
+func (s *sorter) Len() int {
+	return len(s.scores)
+}
+
+func (s *sorter) Less(i, j int) bool {
+	return s.scores[i] > s.scores[j]
+}
+
+func (s *sorter) Swap(i, j int) {
+	s.targets[i], s.targets[j] = s.targets[i], s.targets[j]
+	s.scores[i], s.scores[j] = s.scores[j], s.scores[i]
+}
+
+func (p *greedyPlanner) Plan(l Locator, prev []Assignment, workerSet LocatedSet, targets []Location, scores []int) (res []Assignment) {
+	workers := workerSet.All()
+
+	// Remember assigned workers and targets
+	// Greedy planner will not deassign workers from targets
+	p.assignedTargets.Clear()
+	p.assignedWorkers.Clear()
+	for _, assign := range prev {
+		p.assignedTargets.Add(assign.Target)
+		p.assignedWorkers.Add(assign.Worker)
+		res = append(res, assign)
 	}
-	return score / (1 + estimate)
-}
 
-type TargetsDescSlice struct {
-	p           *Planner
-	targetsDesc []int
-}
-
-func (tds *TargetsDescSlice) Len() int {
-	return len(tds.p.target)
-}
-
-func (tds *TargetsDescSlice) Less(i, j int) bool {
-	return tds.p.target[tds.targetsDesc[i]].Score > tds.p.target[tds.targetsDesc[j]].Score
-}
-
-func (tds *TargetsDescSlice) Swap(i, j int) {
-	tmp := tds.targetsDesc[i]
-	tds.targetsDesc[i] = tds.targetsDesc[j]
-	tds.targetsDesc[j] = tmp
-}
-
-func (p *Planner) assignAny(prov int, tInd int) bool {
-	if len(p.workerByProv[prov]) == 0 {
-		return false
+	// Filter assigned workers
+	for i := 0; i < len(workers); i++ {
+		if p.assignedWorkers.Has(workers[i]) {
+			workers[i] = workers[len(workers)-1]
+			workers = workers[0 : len(workers)-1]
+			i--
+		}
 	}
-	p.assign = append(p.assign, internalAssignment{
-		worker: p.workerByProv[prov][0],
-		target: tInd,
-		score:  p.target[tInd].Score,
-	})
-	p.workerByProv[prov] = p.workerByProv[prov][1:]
-	return true
-}
-
-func (p *Planner) MakePlan() (res []Assignment) {
-	// A simple greedy algorithm:
-	// 1. Find the most important target
-	// 2. Find the most appropriate ant
-	// 3. Assign that ant to the target
-	// 4. Go to 1
-	// Rule: don't touch assigned workers at all.
-	targetsDesc := make([]int, len(p.target))
-	for i := 0; i < len(targetsDesc); i++ {
-		targetsDesc[i] = i
+	// Filter assigned targets
+	for i := 0; i < len(targets); i++ {
+		if p.assignedTargets.Has(targets[i]) {
+			targets[i] = targets[len(targets)-1]
+			scores[i] = scores[len(scores)-1]
+			targets = targets[0 : len(targets)-1]
+			scores = scores[0 : len(scores)-1]
+			i--
+		}
 	}
-	sort.Sort(&TargetsDescSlice{p: p, targetsDesc: targetsDesc})
-	// Linear time assignments of tasks from the same province
-	for _, sliceInd := range targetsDesc {
-		tInd := targetsDesc[sliceInd]
-		prov := p.est.Prov(p.target[tInd].Loc)
-		if p.assignAny(prov, tInd) {
+
+	// Sort targets desc
+	sort.Sort(&sorter{targets, scores})
+
+	for _, t := range targets {
+		// Find closest unassigned worker
+		w, found := workerSet.FindNear(t, func(loc Location) bool {
+			return !p.assignedWorkers.Has(loc)
+		})
+		if !found {
+			// There's no available workers for this target
+			// Probably, it means that there's no available workers at all,
+			// but it also can mean that we have no workers in the current area
+			// (it can be several areas if more than one player hill exists
+			// FIXME: stop planning if all workers are set
 			continue
 		}
-		for _, connProv := range p.est.Conn(prov) {
-			if p.assignAny(connProv, tInd) {
-				break
-			}
-		}
+		res = append(res, Assignment{Worker: w, Target: t})
+		p.assignedWorkers.Add(w)
+		p.assignedTargets.Add(t)
 	}
 
-	for _, assign := range p.assign {
-		res = append(res, Assignment{
-			Worker: p.worker[assign.worker],
-			Target: Target{
-				p.target[assign.target].Loc,
-				assign.score,
-			},
-		})
+	return res
+}
+
+func NewGreedyPlanner(size int) Planner {
+	return &greedyPlanner{size: size,
+		assignedTargets: NewLocSet(size),
+		assignedWorkers: NewLocSet(size),
 	}
-	return
 }

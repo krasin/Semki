@@ -280,3 +280,13 @@ func (m *Map) LandNeighbours(loc Location) (res []Location) {
 func (m *Map) HasHillAt(loc Location) bool {
 	return m.Items[m.Turn()].HasHillAt(loc)
 }
+
+func (m *Map) MyLiveAntAt(loc Location) *MyAnt {
+	// FIXME: This should have O(1) complexity, instead of O(n)
+	for _, ant := range m.MyLiveAnts {
+		if ant.Loc(m.Turn()) == loc {
+			return ant
+		}
+	}
+	return nil
+}

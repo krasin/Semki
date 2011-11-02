@@ -27,35 +27,52 @@ func (b *MyBot) Init(p Params) (err os.Error) {
 	return nil
 }
 
-type MyEstimator struct {
+type myLocator struct {
 	cn *Country
 }
 
-func (est *MyEstimator) Estimate(w *Worker, loc Location) int {
-	return 1
+func (l *myLocator) Dist(from, to Location) int {
+	panic("myLocator.Dist is not implemented")
 }
 
-func (est *MyEstimator) Prov(loc Location) int {
-	return est.cn.Prov(loc).Ind
+type MyLocatedSet struct {
+	locs []Location
 }
 
-func (est *MyEstimator) Conn(prov int) (res []int) {
-	for _, connProv := range est.cn.ProvByIndex(prov).Conn {
-		res = append(res, connProv)
-	}
+func (s *MyLocatedSet) All() (res []Location) {
+	res = make([]Location, len(s.locs))
+	copy(res, s.locs)
 	return
 }
 
-func (b *MyBot) Plan() []Assignment {
-	est := &MyEstimator{cn: b.cn}
-	p := NewPlanner(est, b.cn.ProvCount())
-	for i, ant := range b.m.MyLiveAnts {
-		loc := ant.Loc(b.m.Turn())
-		p.AddWorker(&Worker{Loc: loc, LiveInd: i, Prov: b.cn.Prov(loc).Ind})
+func (s *MyLocatedSet) FindNear(at Location, ok func(Location) bool) (Location, bool) {
+	for _, loc := range s.locs {
+		if ok(loc) {
+			return loc, true
+		}
 	}
+	return 0, false
+}
+
+func (b *MyBot) Plan(prev []Assignment) []Assignment {
+	l := &myLocator{cn: b.cn}
+	p := NewGreedyPlanner(b.t.Size())
+	var workers []Location
+	var targets []Location
+	var scores []int
+
+	for _, ant := range b.m.MyLiveAnts {
+		workers = append(workers, ant.Loc(b.m.Turn()))
+	}
+
+	var addTarget = func(loc Location, score int) {
+		targets = append(targets, loc)
+		scores = append(scores, score)
+	}
+
 	for _, food := range b.m.Food() {
 		if b.cn.IsOwn(food) {
-			p.AddTarget(food, FoodScore)
+			addTarget(food, FoodScore)
 		}
 	}
 	for i := 0; i < b.cn.ProvCount(); i++ {
@@ -69,10 +86,10 @@ func (b *MyBot) Plan() []Assignment {
 			score = age * VisitScore
 		}
 		if score > 0 {
-			p.AddTarget(prov.Center, score)
+			addTarget(prov.Center, score)
 		}
 	}
-	return p.MakePlan()
+	return p.Plan(l, prev, &MyLocatedSet{workers}, targets, scores)
 }
 
 func (b *MyBot) DoTurn(input []Input) (orders []Order, err os.Error) {
@@ -87,7 +104,7 @@ func (b *MyBot) DoTurn(input []Input) (orders []Order, err os.Error) {
 	} else {
 		b.gov.Update()
 	}
-	plan := b.Plan()
+	plan := b.Plan(nil)
 
 	turn := b.m.Turn()
 	for provInd, rep := range b.gov.TurnRep {
@@ -117,8 +134,8 @@ func (b *MyBot) DoTurn(input []Input) (orders []Order, err os.Error) {
 
 	fmt.Fprintf(os.Stderr, "turn: %d, plan: %v\n", turn, plan)
 	for _, assignment := range plan {
-		ant := b.m.MyLiveAnts[assignment.Worker.LiveInd]
-		path := b.cn.Path(ant.Loc(turn), assignment.Target.Loc)
+		ant := b.m.MyLiveAntAt(assignment.Worker)
+		path := b.cn.Path(ant.Loc(turn), assignment.Target)
 		fmt.Fprintf(os.Stderr, "Path: %v\n", path)
 		if path.Len() == 0 {
 			continue
