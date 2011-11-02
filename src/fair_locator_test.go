@@ -7,9 +7,9 @@ import (
 
 type fairLocatorTest struct {
 	n    int
-	adj  [][]int    // just for row < col
-	dist [][]int    // just for tow < col
-	add  []Location // add order
+	adj  [][]int      // just for row < col
+	dist [][]int      // just for tow < col
+	run  [][]Location // add order
 }
 
 func (t *fairLocatorTest) Conn(loc Location) (res []Location) {
@@ -37,7 +37,7 @@ var fairLocatorTests = []fairLocatorTest{
 		n:    1,
 		adj:  [][]int{},
 		dist: [][]int{},
-		add:  []Location{0},
+		run:  [][]Location{[]Location{0}},
 	},
 	{
 		n: 2,
@@ -47,27 +47,11 @@ var fairLocatorTests = []fairLocatorTest{
 		dist: [][]int{
 			[]int{1},
 		},
-		add: []Location{0, 1},
-	},
-	{
-		n: 2,
-		adj: [][]int{
-			[]int{0},
+		run: [][]Location{
+			[]Location{0, 1},
+			[]Location{1, 0},
+			[]Location{1, 0, 1, 0, 1, 0},
 		},
-		dist: [][]int{
-			[]int{NoPath},
-		},
-		add: []Location{0, 1},
-	},
-	{
-		n: 2,
-		adj: [][]int{
-			[]int{1},
-		},
-		dist: [][]int{
-			[]int{1},
-		},
-		add: []Location{1, 0},
 	},
 	{
 		n: 2,
@@ -77,27 +61,11 @@ var fairLocatorTests = []fairLocatorTest{
 		dist: [][]int{
 			[]int{NoPath},
 		},
-		add: []Location{1, 0},
-	},
-	{
-		n: 2,
-		adj: [][]int{
-			[]int{1},
+		run: [][]Location{
+			[]Location{0, 1},
+			[]Location{1, 0},
+			[]Location{1, 0, 1, 0, 1, 0},
 		},
-		dist: [][]int{
-			[]int{1},
-		},
-		add: []Location{1, 0, 1, 0, 1, 0},
-	},
-	{
-		n: 2,
-		adj: [][]int{
-			[]int{0},
-		},
-		dist: [][]int{
-			[]int{NoPath},
-		},
-		add: []Location{1, 0, 1, 0, 1, 0},
 	},
 	{
 		n: 3,
@@ -109,31 +77,11 @@ var fairLocatorTests = []fairLocatorTest{
 			[]int{2, 1},
 			[]int{1},
 		},
-		add: []Location{0, 1, 2},
-	},
-	{
-		n: 3,
-		adj: [][]int{
-			[]int{0, 1},
-			[]int{1},
+		run: [][]Location{
+			[]Location{0, 1, 2},
+			[]Location{2, 1, 0},
+			[]Location{1, 0, 2},
 		},
-		dist: [][]int{
-			[]int{2, 1},
-			[]int{1},
-		},
-		add: []Location{2, 1, 0},
-	},
-	{
-		n: 3,
-		adj: [][]int{
-			[]int{0, 1},
-			[]int{1},
-		},
-		dist: [][]int{
-			[]int{2, 1},
-			[]int{1},
-		},
-		add: []Location{1, 0, 2},
 	},
 	{
 		n: 4,
@@ -147,7 +95,10 @@ var fairLocatorTests = []fairLocatorTest{
 			[]int{2, 1},
 			[]int{1},
 		},
-		add: []Location{0, 1, 2, 3},
+		run: [][]Location{
+			[]Location{0, 1, 2, 3},
+			[]Location{3, 0, 1, 2},
+		},
 	},
 }
 
@@ -159,24 +110,26 @@ func cleanBig() {
 
 func TestFairLocator(t *testing.T) {
 	for testInd, test := range fairLocatorTests {
-		cleanBig()
-		l := NewFairPathLocator(&test, big)
-		for _, loc := range test.add {
-			l.Add(loc)
-			for l.NeedUpdate() {
-				l.UpdateStep()
-			}
-		}
-		for i := 0; i < test.n; i++ {
-			for j := 0; j < i; j++ {
-				want := test.dist[j][i-j-1]
-				got := l.Dist(Location(j), Location(i))
-				if want != got {
-					t.Errorf("test #%d: %d = test.dist[%d][%d-%d-1] != l.Dist(%d, %d) = %d", testInd, want, j, i, j, j, i, got)
+		for runInd, run := range test.run {
+			cleanBig()
+			l := NewFairPathLocator(&test, big)
+			for _, loc := range run {
+				l.Add(loc)
+				for l.NeedUpdate() {
+					l.UpdateStep()
 				}
-				got = l.Dist(Location(i), Location(j))
-				if want != got {
-					t.Errorf("test #%d: %d = test.dist[%d][%d-%d-1] != l.Dist(%d, %d) = %d", testInd, want, j, i, j, i, j, got)
+			}
+			for i := 0; i < test.n; i++ {
+				for j := 0; j < i; j++ {
+					want := test.dist[j][i-j-1]
+					got := l.Dist(Location(j), Location(i))
+					if want != got {
+						t.Errorf("test #%d, run #%d: %d = test.dist[%d][%d-%d-1] != l.Dist(%d, %d) = %d", testInd, runInd, want, j, i, j, j, i, got)
+					}
+					got = l.Dist(Location(i), Location(j))
+					if want != got {
+						t.Errorf("test #%d: run #d: %d = test.dist[%d][%d-%d-1] != l.Dist(%d, %d) = %d", testInd, runInd, want, j, i, j, i, j, got)
+					}
 				}
 			}
 		}
