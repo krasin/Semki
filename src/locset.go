@@ -12,7 +12,7 @@ type locSet struct {
 }
 
 func NewLocSet(size int) LocSet {
-	return &locSet{a: make([]int, size)}
+	return &locSet{a: make([]int, size), b: 1}
 }
 
 func (s *locSet) Clear() {
