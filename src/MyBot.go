@@ -14,11 +14,13 @@ const NeverVisitedScore = 100000
 const EnemyWithdrawalScore = 2000
 
 type MyBot struct {
-	p   Params
-	t   Torus
-	m   *Map
-	cn  *Country
-	gov *Goverment
+	p          Params
+	t          Torus
+	m          *Map
+	cn         *Country
+	gov        *Goverment
+	locsByProv LocListMap
+	locSet     LocSet
 }
 
 func (b *MyBot) Init(p Params) (err os.Error) {
@@ -26,6 +28,8 @@ func (b *MyBot) Init(p Params) (err os.Error) {
 	b.p = p
 	b.t = Torus{Rows: p.Rows, Cols: p.Cols}
 	b.m = NewMap(b.t, p.ViewRadius2)
+	b.locsByProv = NewLocListMap(b.t.Size())
+	b.locSet = NewLocSet(b.t.Size())
 	return nil
 }
 
@@ -38,7 +42,20 @@ func (l *myLocator) Dist(from, to Location) int {
 }
 
 type MyLocatedSet struct {
-	locs []Location
+	m          *Map
+	cn         *Country
+	locs       []Location
+	locSet     LocSet
+	locsByProv LocListMap
+}
+
+func NewMyLocatedSet(m *Map, cn *Country, locs []Location, locSet LocSet, locsByProv LocListMap) (s *MyLocatedSet) {
+	s = &MyLocatedSet{m: m, cn: cn, locs: locs, locSet: locSet, locsByProv: locsByProv}
+	s.locsByProv.Clear()
+	for _, loc := range locs {
+		s.locsByProv.Add(cn.Prov(loc).Center, loc)
+	}
+	return
 }
 
 func (s *MyLocatedSet) All() (res []Location) {
@@ -48,9 +65,32 @@ func (s *MyLocatedSet) All() (res []Location) {
 }
 
 func (s *MyLocatedSet) FindNear(at Location, ok func(Location) bool) (Location, bool) {
-	for _, loc := range s.locs {
-		if ok(loc) {
-			return loc, true
+	if ant := s.m.MyLiveAntAt(at); ant != nil && ok(at) {
+		return at, true
+	}
+	prov := s.cn.Prov(at)
+	if prov == nil {
+		return 0, false
+	}
+	s.locSet.Clear()
+	s.locSet.Add(prov.Center)
+	q := []*Province{prov}
+	var q2 []*Province
+	for len(q) > 0 {
+		q, q2 = q2[:0], q
+		for _, prov := range q2 {
+			for _, w := range s.locsByProv.Get(prov.Center) {
+				if ok(w) {
+					return w, true
+				}
+			}
+			for _, other := range prov.Conn {
+				otherProv := s.cn.ProvByIndex(other)
+				if !s.locSet.Has(otherProv.Center) {
+					q = append(q, s.cn.Prov(otherProv.Center))
+					s.locSet.Add(otherProv.Center)
+				}
+			}
 		}
 	}
 	return 0, false
@@ -108,7 +148,8 @@ func (b *MyBot) Plan() {
 	}
 
 	fmt.Fprintf(os.Stderr, "scores: %v\n", scores)
-	plan := p.Plan(l, prev, &MyLocatedSet{workers}, targets, scores)
+
+	plan := p.Plan(l, prev, NewMyLocatedSet(b.m, b.cn, workers, b.locSet, b.locsByProv), targets, scores)
 	fmt.Fprintf(os.Stderr, "plan = %v\n", plan)
 	for _, assign := range plan {
 		ant := b.m.MyLiveAntAt(assign.Worker)
