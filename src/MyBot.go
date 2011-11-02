@@ -12,6 +12,7 @@ const FoodScore = 1000000
 const VisitScore = 1000
 const NeverVisitedScore = 100000
 const EnemyWithdrawalScore = 2000
+const EnemyHillScore = 10000000
 
 const MaxFindNearCount = 10
 
@@ -140,6 +141,12 @@ func (b *MyBot) Plan() {
 			addTarget(food, FoodScore)
 		}
 	}
+	for _, hill := range b.m.EnemyHills() {
+		if b.cn.IsOwn(hill.Loc) {
+			addTarget(hill.Loc, EnemyHillScore)
+		}
+	}
+
 	for i := 0; i < b.cn.ProvCount(); i++ {
 		prov := b.cn.ProvByIndex(i)
 		if !prov.Live() || b.m.HasHillAt(prov.Center) {

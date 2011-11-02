@@ -194,6 +194,15 @@ func (m *Map) MyHills() (hills []*Item) {
 	return
 }
 
+func (m *Map) EnemyHills() (hills []*Item) {
+	for _, item := range m.Items[m.Turn()].All {
+		if item.What == Hill && item.Owner != Me {
+			hills = append(hills, item)
+		}
+	}
+	return
+}
+
 func (m *Map) UpdateLiveAnts() {
 	m.MyLiveAntsIndex.Clear()
 	// Find dead ants and remove them from MyLiveAnts
