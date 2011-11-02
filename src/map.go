@@ -1,5 +1,9 @@
 package main
 
+import (
+	"fmt"
+)
+
 type Location int
 type ItemType int
 type Terrain int
@@ -95,6 +99,10 @@ func (a *MyAnt) NewTurn(turn int) {
 	if !a.HasLoc(turn) {
 		a.Locs = append(a.Locs, a.Locs[len(a.Locs)-1])
 	}
+}
+
+func (a *MyAnt) String() string {
+	return fmt.Sprintf("(%v)", a.Locs[len(a.Locs)-1])
 }
 
 type MyAntIndex struct {

@@ -98,16 +98,31 @@ func (b *MyBot) Plan(myPrev []MyAssignment) (myPlan []MyAssignment) {
 	}
 	var prev []Assignment
 	for _, myAssign := range myPrev {
+		if !myAssign.Ant.Alive {
+			continue
+		}
+		loc := myAssign.Ant.Loc(b.m.Turn())
+		if loc == myAssign.Target {
+			continue
+		}
+		if b.m.MyLiveAntAt(loc) == nil {
+			fmt.Fprintf(os.Stderr, "MyLiveAnts: %v\n", b.m.MyLiveAnts)
+			fmt.Fprintf(os.Stderr, "b.m.MyLiveAntAt(%v): nil\n", loc)
+		}
 		prev = append(prev, Assignment{
-			Worker: myAssign.Ant.Loc(b.m.Turn()),
+			Worker: loc,
 			Target: myAssign.Target,
 			Score:  myAssign.Score,
 		})
 	}
 	plan := p.Plan(l, prev, &MyLocatedSet{workers}, targets, scores)
 	for _, assign := range plan {
+		ant := b.m.MyLiveAntAt(assign.Worker)
+		if ant == nil {
+			panic("ant == nil")
+		}
 		myPlan = append(myPlan, MyAssignment{
-			Ant:    b.m.MyLiveAntAt(assign.Worker),
+			Ant:    ant,
 			Target: assign.Target,
 			Score:  assign.Score,
 		})
@@ -158,6 +173,9 @@ func (b *MyBot) DoTurn(input []Input) (orders []Order, err os.Error) {
 	fmt.Fprintf(os.Stderr, "turn: %d, plan: %v\n", turn, b.plan)
 	for _, assign := range b.plan {
 		ant := assign.Ant
+		if ant == nil {
+			panic("ant == nil")
+		}
 		path := b.cn.Path(ant.Loc(turn), assign.Target)
 		fmt.Fprintf(os.Stderr, "Path: %v\n", path)
 		if path.Len() == 0 {
