@@ -71,9 +71,9 @@ func (it *Items) HasAntAt(loc Location, owner int) bool {
 	return false
 }
 
-func (it *Items) HasHillAt(loc Location) bool {
+func (it *Items) HasMyHillAt(loc Location) bool {
 	for _, item := range it.At[loc] {
-		if item.What == Hill {
+		if item.What == Hill && item.Owner == Me {
 			return true
 		}
 	}
@@ -458,8 +458,8 @@ func (m *Map) ResolveConflicts() {
 	}
 }
 
-func (m *Map) HasHillAt(loc Location) bool {
-	return m.Items[m.Turn()].HasHillAt(loc)
+func (m *Map) HasMyHillAt(loc Location) bool {
+	return m.Items[m.Turn()].HasMyHillAt(loc)
 }
 
 func (m *Map) MyLiveAntAt(loc Location) *MyAnt {

@@ -13,6 +13,7 @@ const VisitScore = 1000
 const NeverVisitedScore = 100000
 const EnemyWithdrawalScore = 2000
 const EnemyHillScore = 10000000
+const MoveFromMyHillScore = 10000000
 
 const MaxFindNearCount = 10
 
@@ -149,7 +150,7 @@ func (b *MyBot) Plan() {
 
 	for i := 0; i < b.cn.ProvCount(); i++ {
 		prov := b.cn.ProvByIndex(i)
-		if !prov.Live() || b.m.HasHillAt(prov.Center) {
+		if !prov.Live() || b.m.HasMyHillAt(prov.Center) {
 			continue
 		}
 		score := NeverVisitedScore
@@ -232,6 +233,15 @@ func (b *MyBot) DoTurn(input []Input) (orders []Order, err os.Error) {
 		prov := b.cn.ProvByIndex(provInd)
 		if len(rep.MyLiveAnts) == 0 {
 			continue
+		}
+		if b.m.HasMyHillAt(prov.Center) {
+			ant := b.m.MyLiveAntAt(prov.Center)
+			// Don't stay in the hill
+			if ant != nil {
+				ant.Target = b.cn.ProvByIndex(prov.Conn[rand.Intn(len(prov.Conn))]).Center
+				ant.Score = MoveFromMyHillScore
+				ant.Path = b.cn.Path(prov.Center, ant.Target)
+			}
 		}
 		// Enemies
 		if len(rep.Enemy) > 0 {
