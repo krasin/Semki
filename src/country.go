@@ -163,14 +163,28 @@ func removeDuplicates(a []int, what, with int) (b []int) {
 	return
 }
 
+func filter(a []int, val int) []int {
+	for i := 0; i < len(a); i++ {
+		if a[i] == val {
+			a[i] = a[len(a)-1]
+			a = a[:len(a)-1]
+			i--
+		}
+	}
+	return a
+}
+
 func (cn *Country) join(what, with *Province) {
 	whatInd := cn.cells[what.Center]
 	withInd := cn.cells[with.Center]
+	fmt.Fprintf(os.Stderr, "join(what=%d,with=%d)\n", whatInd, withInd)
 	what.Size += with.Size
 	with.Size = 0
 	with.Center = what.Center
+	what.Conn = filter(what.Conn, with.Ind)
 	conn := what.Conn
 	what.Conn = nil
+	with.Conn = filter(with.Conn, what.Ind)
 	conn = append(conn, with.Conn...)
 	with.Conn = nil
 	for i := 0; i < len(conn); i++ {
@@ -182,7 +196,7 @@ func (cn *Country) join(what, with *Province) {
 	}
 	what.Conn = removeDuplicates(conn, -1, -1)
 	for _, ind := range what.Conn {
-		cn.prov[ind].Conn = removeDuplicates(cn.prov[ind].Conn, whatInd, withInd)
+		cn.prov[ind].Conn = removeDuplicates(cn.prov[ind].Conn, withInd, whatInd)
 	}
 	if what.Dist > with.Dist {
 		what.Dist = with.Dist
@@ -360,6 +374,7 @@ func (cn *Country) ProvPath(fromProv, toProv *Province) (res []*Province) {
 						}
 					}
 					if !found {
+						fmt.Fprintf(os.Stderr, "val: %d, cur: %v, toProv: %v, used[toProv]: %d\n", val, cur, toProv, used.Get(toProv.Center))
 						panic("not found")
 					}
 				}
@@ -367,7 +382,23 @@ func (cn *Country) ProvPath(fromProv, toProv *Province) (res []*Province) {
 				return
 			}
 			for _, ind := range cn.Prov(loc).Conn {
-				cell := cn.ProvByIndex(ind).Center
+				curProv := cn.ProvByIndex(ind)
+
+				// Debug check
+				found := false
+				for _, ind2 := range curProv.Conn {
+					p := cn.ProvByIndex(ind2)
+					if p.Center == loc {
+						found = true
+						break
+					}
+				}
+				if !found {
+					fmt.Fprintf(os.Stderr, "Could not find back edge for %v -> %v\n", cn.Prov(loc), curProv)
+					panic("Debug check failed")
+				}
+
+				cell := curProv.Center
 				if used.Get(cell) == 0 {
 					q = append(q, cell)
 					used.Add(cell, used.Get(loc)+1)
