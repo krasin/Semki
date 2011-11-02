@@ -26,8 +26,21 @@ var locSetTests = []locSetTest{
 		Size: 1,
 		Actions: []locSetTestAction{
 			{SetCheck, 0, false},
-			{SetAdd, 0, false},
+			{SetAdd, 0, true},
 			{SetCheck, 0, true},
+		},
+	},
+	{
+		Size: 2,
+		Actions: []locSetTestAction{
+			{SetCheck, 0, false},
+			{SetCheck, 1, false},
+			{SetAdd, 0, true},
+			{SetCheck, 0, true},
+			{SetCheck, 1, false},
+			{Action: SetClear},
+			{SetCheck, 0, false},
+			{SetCheck, 1, false},
 		},
 	},
 }
