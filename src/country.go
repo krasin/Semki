@@ -435,9 +435,13 @@ func (cn *Country) Path(from, to Location) Path {
 		panic("len(provPath) == 1")
 
 	}
-	path := cn.PathSlow(from, provPath[1].Center)
+	ind := 2
+	if len(provPath) < 3 {
+		ind = 1
+	}
+	path := cn.PathSlow(from, provPath[ind].Center)
 	//	fmt.Fprintf(os.Stderr, "First chunk: %v\n", path)
-	provPath = provPath[1:]
+	provPath = provPath[ind:]
 	for i := range provPath {
 		if i == 0 {
 			continue

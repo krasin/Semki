@@ -3,11 +3,13 @@ package main
 type LocSet interface {
 	Add(loc Location)
 	Has(loc Location) bool
+	All() []Location
 	Clear()
 }
 
 type locSet struct {
 	a []int
+	l []Location
 	b int
 }
 
@@ -17,14 +19,24 @@ func NewLocSet(size int) LocSet {
 
 func (s *locSet) Clear() {
 	s.b++
+	s.l = s.l[:0]
 }
 
 func (s *locSet) Add(loc Location) {
-	s.a[loc] = s.b
+	if !s.Has(loc) {
+		s.a[loc] = s.b
+		s.l = append(s.l, loc)
+	}
 }
 
 func (s *locSet) Has(loc Location) bool {
 	return s.a[loc] == s.b
+}
+
+func (s *locSet) All() (res []Location) {
+	res = make([]Location, len(s.l))
+	copy(res, s.l)
+	return
 }
 
 type LocListMap interface {
@@ -67,6 +79,7 @@ func (s *locListMap) Clear() {
 type LocIntMap interface {
 	Add(at Location, value int)
 	Get(at Location) int
+	All() []Location
 	Clear()
 }
 
@@ -95,5 +108,43 @@ func (m *locIntMap) Get(at Location) int {
 }
 
 func (m *locIntMap) Clear() {
+	m.s.Clear()
+}
+
+func (m *locIntMap) All() []Location {
+	return m.s.All()
+}
+
+type LocLocMap interface {
+	Add(at Location, value Location)
+	Get(at Location) Location
+	Clear()
+}
+
+type locLocMap struct {
+	a []Location
+	s LocSet
+}
+
+func NewLocLocMap(size int) LocLocMap {
+	return &locLocMap{
+		a: make([]Location, size),
+		s: NewLocSet(size),
+	}
+}
+
+func (m *locLocMap) Add(at Location, value Location) {
+	m.s.Add(at)
+	m.a[at] = value
+}
+
+func (m *locLocMap) Get(at Location) Location {
+	if !m.s.Has(at) {
+		return 0
+	}
+	return m.a[at]
+}
+
+func (m *locLocMap) Clear() {
 	m.s.Clear()
 }

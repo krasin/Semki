@@ -11,6 +11,7 @@ import (
 const FoodScore = 1000000
 const VisitScore = 1000
 const NeverVisitedScore = 100000
+const NeverVisitedScore2 = 50000
 const EnemyWithdrawalScore = 4000
 const EnemyHillScore = 10000000
 const MoveFromMyHillScore = 10000000
@@ -43,7 +44,16 @@ type myLocator struct {
 }
 
 func (l *myLocator) Dist(from, to Location) int {
-	panic("myLocator.Dist is not implemented")
+	fromProv := l.cn.Prov(from)
+	toProv := l.cn.Prov(to)
+	if fromProv != toProv {
+		return -1
+	}
+	p := l.cn.PathSlow(from, to)
+	if p == nil {
+		return -1
+	}
+	return p.Len()
 }
 
 type MyLocatedSet struct {
@@ -69,24 +79,24 @@ func (s *MyLocatedSet) All() (res []Location) {
 	return
 }
 
-func (s *MyLocatedSet) FindNear(at Location, score int, ok func(Location, int) bool) (Location, bool) {
-	if ant := s.m.MyLiveAntAt(at); ant != nil && ok(at, score) {
+func (s *MyLocatedSet) FindNear(at Location, score int, ok func(Location, int, bool) bool) (Location, bool) {
+	if ant := s.m.MyLiveAntAt(at); ant != nil && ok(at, score, true) {
 		return at, true
 	}
-	prov := s.cn.Prov(at)
-	if prov == nil {
+	start := s.cn.Prov(at)
+	if start == nil {
 		return 0, false
 	}
 	s.locSet.Clear()
-	s.locSet.Add(prov.Center)
-	q := []*Province{prov}
+	s.locSet.Add(start.Center)
+	q := []*Province{start}
 	var q2 []*Province
 	count := 0
 	for len(q) > 0 {
 		q, q2 = q2[:0], q
 		for _, prov := range q2 {
 			for _, w := range s.locsByProv.Get(prov.Center) {
-				if ok(w, score) {
+				if ok(w, score, prov == start) {
 					return w, true
 				}
 				count++
@@ -153,13 +163,20 @@ func (b *MyBot) Plan() {
 		if !prov.Live() || b.m.HasMyHillAt(prov.Center) {
 			continue
 		}
-		score := NeverVisitedScore
 		if b.m.LastVisited[prov.Center] > 0 {
 			age := b.m.Turn() - b.m.LastVisited[prov.Center]
-			score = age * VisitScore
-		}
-		if score > 0 {
-			addTarget(prov.Center, score)
+			if age > 0 {
+				addTarget(prov.Center, age*VisitScore)
+			}
+		} else {
+			addTarget(prov.Center, NeverVisitedScore)
+			for _, dir := range Dirs {
+				newLoc := b.t.NewLoc(prov.Center, dir)
+				if b.m.Terrain[newLoc] == Land {
+					addTarget(newLoc, NeverVisitedScore2)
+					break
+				}
+			}
 		}
 	}
 
@@ -168,7 +185,7 @@ func (b *MyBot) Plan() {
 
 	plan := p.Plan(l, prev, NewMyLocatedSet(b.m, b.cn, workers, b.locSet, b.locsByProv), targets, scores)
 	b.perf.Log("Planner")
-	//	fmt.Fprintf(os.Stderr, "plan = %v\n", plan)
+	fmt.Fprintf(os.Stderr, "plan = %v\n", plan)
 	for _, assign := range plan {
 		ant := b.m.MyLiveAntAt(assign.Worker)
 		if ant == nil {
@@ -178,8 +195,10 @@ func (b *MyBot) Plan() {
 			continue
 		}
 		ant.Path = b.cn.Path(ant.Loc(b.m.Turn()), assign.Target)
+		fmt.Fprintf(os.Stderr, "path: %v\n", ant.Path)
 		ant.Target = assign.Target
 		ant.Score = assign.Score
+		//		fmt.Fprintf(os.Stderr, "ant: %v\n", *ant)
 	}
 	b.perf.Log("Finding paths")
 	return

@@ -1,10 +1,13 @@
 package main
 
 import (
+	"fmt"
+	"os"
 	"sort"
 )
 
 const ReassignThresholdRatio = 1.5
+const ReassignDist = 5
 
 type Locator interface {
 	Dist(from, to Location) int
@@ -12,7 +15,7 @@ type Locator interface {
 
 type LocatedSet interface {
 	All() []Location
-	FindNear(loc Location, score int, ok func(loc Location, score int) bool) (Location, bool)
+	FindNear(loc Location, score int, ok func(worker Location, score int, sameProv bool) bool) (Location, bool)
 }
 
 type Assignment struct {
@@ -26,9 +29,10 @@ type Planner interface {
 }
 
 type greedyPlanner struct {
-	size            int
-	assignedTargets LocSet
-	assignedWorkers LocIntMap
+	size                     int
+	assignedTargets          LocSet
+	assignedWorkers          LocIntMap
+	assignedWorkersToTargets LocLocMap
 }
 
 type combineSortInterface struct {
@@ -66,10 +70,11 @@ func (p *greedyPlanner) Plan(l Locator, prev []Assignment, workerSet LocatedSet,
 	// Greedy planner will not deassign workers from targets
 	p.assignedTargets.Clear()
 	p.assignedWorkers.Clear()
+	p.assignedWorkersToTargets.Clear()
 	for _, assign := range prev {
 		p.assignedTargets.Add(assign.Target)
 		p.assignedWorkers.Add(assign.Worker, assign.Score)
-		res = append(res, assign)
+		p.assignedWorkersToTargets.Add(assign.Worker, assign.Target)
 	}
 
 	// Filter assigned workers
@@ -96,10 +101,17 @@ func (p *greedyPlanner) Plan(l Locator, prev []Assignment, workerSet LocatedSet,
 
 	for i, t := range targets {
 		// Find closest unassigned worker
-		w, found := workerSet.FindNear(t, scores[i], func(loc Location, score int) bool {
-			ascore := p.assignedWorkers.Get(loc)
-			return ascore == 0 || int(float64(ascore)*ReassignThresholdRatio) < score
-
+		w, found := workerSet.FindNear(t, scores[i], func(worker Location, score int, sameProv bool) bool {
+			ascore := p.assignedWorkers.Get(worker)
+			if ascore == 0 || int(float64(ascore)*ReassignThresholdRatio) < score {
+				return true
+			}
+			newDist := l.Dist(worker, t)
+			if (sameProv || newDist >= 0 && newDist < ReassignDist) && score >= ascore {
+				curDist := l.Dist(worker, p.assignedWorkersToTargets.Get(worker))
+				return newDist > 0 && (curDist == -1 || newDist < curDist)
+			}
+			return false
 		})
 		if !found {
 			// There's no available workers for this target
@@ -109,9 +121,17 @@ func (p *greedyPlanner) Plan(l Locator, prev []Assignment, workerSet LocatedSet,
 			// FIXME: stop planning if all workers are set
 			continue
 		}
-		res = append(res, Assignment{Worker: w, Target: t, Score: scores[i]})
 		p.assignedWorkers.Add(w, scores[i])
 		p.assignedTargets.Add(t)
+		p.assignedWorkersToTargets.Add(w, t)
+	}
+	fmt.Fprintf(os.Stderr, "Assigned workers: %v\n", p.assignedWorkers.All())
+	for _, w := range p.assignedWorkers.All() {
+		res = append(res, Assignment{
+			Worker: w,
+			Target: p.assignedWorkersToTargets.Get(w),
+			Score:  p.assignedWorkers.Get(w),
+		})
 	}
 
 	return res
@@ -119,7 +139,8 @@ func (p *greedyPlanner) Plan(l Locator, prev []Assignment, workerSet LocatedSet,
 
 func NewGreedyPlanner(size int) Planner {
 	return &greedyPlanner{size: size,
-		assignedTargets: NewLocSet(size),
-		assignedWorkers: NewLocIntMap(size),
+		assignedTargets:          NewLocSet(size),
+		assignedWorkers:          NewLocIntMap(size),
+		assignedWorkersToTargets: NewLocLocMap(size),
 	}
 }
