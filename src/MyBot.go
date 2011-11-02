@@ -5,6 +5,7 @@ import (
 	//	"io/ioutil"
 	"os"
 	"rand"
+	"time"
 )
 
 const FoodScore = 1000000
@@ -121,21 +122,49 @@ func (b *MyBot) Plan() {
 	return
 }
 
+type Timing struct {
+	start int64
+	last  int64
+}
+
+func NewTiming() *Timing {
+	now := time.Nanoseconds()
+	return &Timing{start: now, last: now}
+}
+
+func (t *Timing) Log(name string) {
+	now := time.Nanoseconds()
+	fmt.Fprintf(os.Stderr, "%s: %d ms\n", name, (now-t.last)/(1000*1000))
+	t.last = now
+}
+
+func (t *Timing) Total() {
+	now := time.Nanoseconds()
+	fmt.Fprintf(os.Stderr, "total: %d ms\n", (now-t.start)/(1000*1000))
+}
+
 func (b *MyBot) DoTurn(input []Input) (orders []Order, err os.Error) {
+	perf := NewTiming()
 	b.m.Update(input)
+	perf.Log("Map update")
+
 	if b.cn == nil {
 		b.cn = NewCountry(b.m)
 	} else {
 		b.cn.Update()
 	}
+	perf.Log("Country update")
 	if b.gov == nil {
 		b.gov = NewGoverment(b.cn, b.m)
 	} else {
 		b.gov.Update()
 	}
+	perf.Log("Goverment update")
 	b.cn.Dump("/tmp/country.txt")
+	perf.Log("Map dump")
 
 	b.Plan()
+	perf.Log("Plan")
 
 	turn := b.m.Turn()
 	for provInd, rep := range b.gov.TurnRep {
@@ -158,8 +187,10 @@ func (b *MyBot) DoTurn(input []Input) (orders []Order, err os.Error) {
 			continue
 		}
 	}
+	perf.Log("Withdrawal from enemies")
 
 	b.m.MoveAnts()
+	perf.Log("MoveAnts")
 
 	for _, ant := range b.m.MyLiveAnts {
 		if ant.HasLoc(turn + 1) {
@@ -174,5 +205,7 @@ func (b *MyBot) DoTurn(input []Input) (orders []Order, err os.Error) {
 				})
 		}
 	}
+	perf.Log("Generate output")
+	perf.Total()
 	return
 }
