@@ -97,24 +97,51 @@ func (a *MyAnt) NewTurn(turn int) {
 	}
 }
 
+type MyAntIndex struct {
+	myAnts []*MyAnt
+	s      LocSet
+}
+
+func NewMyAntIndex(size int) *MyAntIndex {
+	return &MyAntIndex{
+		myAnts: make([]*MyAnt, size),
+		s:      NewLocSet(size),
+	}
+}
+
+func (in *MyAntIndex) Add(loc Location, ant *MyAnt) {
+	in.s.Add(loc)
+	in.myAnts[loc] = ant
+}
+
+func (in *MyAntIndex) At(loc Location) *MyAnt {
+	return in.myAnts[loc]
+}
+
+func (in *MyAntIndex) Clear() {
+	in.s.Clear()
+}
+
 type Map struct {
-	T           Torus
-	Terrain     []Terrain
-	Items       []*Items
-	ViewMaskRow []int
-	ViewMaskCol []int
-	MyAnts      []*MyAnt
-	MyLiveAnts  []*MyAnt
-	LastVisited []int
-	Next        *Items
+	T               Torus
+	Terrain         []Terrain
+	Items           []*Items
+	ViewMaskRow     []int
+	ViewMaskCol     []int
+	MyAnts          []*MyAnt
+	MyLiveAnts      []*MyAnt
+	MyLiveAntsIndex *MyAntIndex
+	LastVisited     []int
+	Next            *Items
 }
 
 func NewMap(t Torus, viewRadius2 int) (m *Map) {
 	m = &Map{
-		T:           t,
-		Terrain:     make([]Terrain, t.Size()),
-		Items:       []*Items{NewItems(t)},
-		LastVisited: make([]int, t.Size()),
+		T:               t,
+		Terrain:         make([]Terrain, t.Size()),
+		Items:           []*Items{NewItems(t)},
+		LastVisited:     make([]int, t.Size()),
+		MyLiveAntsIndex: NewMyAntIndex(t.Size()),
 	}
 	m.GenerateViewMask(viewRadius2)
 	return m
@@ -152,6 +179,7 @@ func (m *Map) MyHills() (hills []*Item) {
 }
 
 func (m *Map) UpdateLiveAnts() {
+	m.MyLiveAntsIndex.Clear()
 	// Find dead ants and remove them from MyLiveAnts
 	var dead []int
 	items := m.Items[m.Turn()]
@@ -160,6 +188,7 @@ func (m *Map) UpdateLiveAnts() {
 		if !items.HasAntAt(ant.Loc(m.Turn()), Me) {
 			dead = append(dead, i)
 		}
+		m.MyLiveAntsIndex.Add(ant.Loc(m.Turn()), ant)
 	}
 	for i := len(dead) - 1; i >= 0; i-- {
 		m.MyLiveAnts[dead[i]].Alive = false
@@ -178,8 +207,10 @@ func (m *Map) UpdateLiveAnts() {
 			}
 			m.MyAnts = append(m.MyAnts, ant)
 			m.MyLiveAnts = append(m.MyLiveAnts, ant)
+			m.MyLiveAntsIndex.Add(ant.Loc(m.Turn()), ant)
 		}
 	}
+
 }
 
 func (m *Map) Update(input []Input) {
@@ -282,11 +313,5 @@ func (m *Map) HasHillAt(loc Location) bool {
 }
 
 func (m *Map) MyLiveAntAt(loc Location) *MyAnt {
-	// FIXME: This should have O(1) complexity, instead of O(n)
-	for _, ant := range m.MyLiveAnts {
-		if ant.Loc(m.Turn()) == loc {
-			return ant
-		}
-	}
-	return nil
+	return m.MyLiveAntsIndex.At(loc)
 }
