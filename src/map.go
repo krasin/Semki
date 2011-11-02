@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 )
 
 type Location int
@@ -84,6 +85,10 @@ type MyAnt struct {
 	BornAt int
 	DiedAt int
 	Alive  bool
+
+	Path   Path
+	Target Location
+	Score  int
 }
 
 func (a *MyAnt) Loc(turn int) Location {
@@ -123,7 +128,10 @@ func (in *MyAntIndex) Add(loc Location, ant *MyAnt) {
 }
 
 func (in *MyAntIndex) At(loc Location) *MyAnt {
-	return in.myAnts[loc]
+	if in.s.Has(loc) {
+		return in.myAnts[loc]
+	}
+	return nil
 }
 
 func (in *MyAntIndex) Clear() {
@@ -207,7 +215,8 @@ func (m *Map) UpdateLiveAnts() {
 
 	// Find newly born ants. They born in hills
 	for _, hill := range m.MyHills() {
-		if items.HasAntAt(hill.Loc, Me) {
+		if items.HasAntAt(hill.Loc, Me) &&
+			m.MyLiveAntAt(hill.Loc) == nil {
 			ant := &MyAnt{
 				BornAt: m.Turn(),
 				Alive:  true,
@@ -289,9 +298,18 @@ func (m *Map) UpdateLastVisited() {
 
 func (m *Map) CanMove(loc Location, d Direction) bool {
 	newLoc := m.T.NewLoc(loc, d)
-	return m.Terrain[newLoc] != Water &&
-		m.Items[m.Turn()].CanEnter(newLoc) &&
-		m.Next.CanEnter(newLoc)
+	if m.Terrain[newLoc] == Water {
+		return false
+	}
+	if !m.Next.CanEnter(newLoc) {
+		return false
+	}
+	ant := m.MyLiveAntAt(newLoc)
+	if ant != nil {
+		fmt.Fprintf(os.Stderr, "CanMove(%d, %c) is false because of the ant at: %d\n", loc, d, newLoc)
+		return false
+	}
+	return m.Items[m.Turn()].CanEnter(newLoc)
 }
 
 func (m *Map) Move(ant *MyAnt, d Direction) {
@@ -316,10 +334,132 @@ func (m *Map) LandNeighbours(loc Location) (res []Location) {
 	return
 }
 
+func (m *Map) MoveAnts() {
+	m.ResolveConflicts()
+	fmt.Fprintf(os.Stderr, "MyLiveAnts: %v\n", m.MyLiveAnts)
+	for _, ant := range m.MyLiveAnts {
+		if ant.Path == nil {
+			continue
+		}
+		dir := ant.Path.Dir(0)
+		if m.CanMove(ant.Loc(m.Turn()), dir) {
+			m.Move(ant, dir)
+			ant.Path.Advance(1)
+		} else {
+			//			fmt.Fprintf(os.Stderr, "Can't move, dir: %c, ant loc: %d\n", dir, ant.Loc(m.Turn()))
+		}
+	}
+}
+
+func (m *Map) ResolveConflicts() {
+	q := make([]*MyAnt, len(m.MyLiveAnts))
+	copy(q, m.MyLiveAnts)
+	var q2 []*MyAnt
+	for len(q) > 0 {
+		tmpQ := q2
+		q2 = q
+		q = tmpQ[:0]
+
+		for _, ant := range q2 {
+			fmt.Fprintf(os.Stderr, "ResolveConflicts for ant at %v, ", ant.Loc(m.Turn()))
+			if ant.Path == nil {
+				fmt.Fprintf(os.Stderr, "Path == nil\n")
+				continue
+			}
+			if ant.Path.Len() == 0 {
+				fmt.Fprintf(os.Stderr, "Path is empty\n")
+				ant.Path = nil
+				continue
+			}
+			dir := ant.Path.Dir(0)
+			fmt.Fprintf(os.Stderr, "dir = %c ", dir)
+			to := m.T.NewLoc(ant.Loc(m.Turn()), dir)
+			ant2 := m.MyLiveAntAt(to)
+			if ant == ant2 {
+				panic(fmt.Sprintf("ant == ant2! loc: %d, newLoc: %d, dir: %c", ant.Loc(m.Turn()), to, dir))
+			}
+			if ant2 == nil {
+				fmt.Fprintf(os.Stderr, "ant2 == nil\n")
+				// FIXME: do something with the case when two ants want to enter one cell
+				continue
+			}
+			if ant2.Path != nil && ant2.Path.Len() == 0 {
+				ant2.Path = nil
+			}
+			if ant2.Path == nil {
+				fmt.Fprintf(os.Stderr, "ant2.Path == nil. Success\n")
+				tmpPath := ant.Path
+				ant.Path = ant2.Path
+				ant2.Path = tmpPath
+				tmpTarget := ant.Target
+				ant.Target = ant2.Target
+				ant2.Target = tmpTarget
+				tmpScore := ant.Score
+				ant.Score = ant2.Score
+				ant2.Score = tmpScore
+
+				ant2.Path.Advance(1)
+				if ant2.Path.Len() == 0 {
+					ant2.Path = nil
+				}
+				q = append(q, ant)
+				q = append(q, ant2)
+				continue
+			}
+			dir2 := ant2.Path.Dir(0)
+			if !ant2.HasLoc(m.Turn()) {
+				panic("ant2 does not have current loc!")
+			}
+			to2 := m.T.NewLoc(ant2.Loc(m.Turn()), dir2)
+			if to2 == ant.Loc(m.Turn()) {
+				fmt.Fprintf(os.Stderr, "*-><-* case. Success!\n")
+				if ant.Path == nil {
+					panic("ant.Path == nil!")
+				}
+				tmpPath := ant.Path
+				ant.Path = ant2.Path
+				ant2.Path = tmpPath
+				if ant2.Path == nil {
+					panic(fmt.Sprintf("1. ant2.Path == nil! tmpPath: %v", tmpPath))
+				}
+				tmpTarget := ant.Target
+				ant.Target = ant2.Target
+				ant2.Target = tmpTarget
+				tmpScore := ant.Score
+				ant.Score = ant2.Score
+				ant2.Score = tmpScore
+
+				ant.Path.Advance(1)
+				if ant.Path.Len() == 0 {
+					ant.Path = nil
+				}
+				if ant2.Path == nil {
+					panic(fmt.Sprintf("2. ant2.Path == nil! tmpPath: %v", tmpPath))
+				}
+				ant2.Path.Advance(1)
+				if ant2.Path.Len() == 0 {
+					ant2.Path = nil
+				}
+				q = append(q, ant)
+				q = append(q, ant2)
+				continue
+			}
+			fmt.Fprintf(os.Stderr, "Unknown case, ant2 at %v, dir2: %c \n", ant2.Loc(m.Turn()), dir2)
+		}
+	}
+}
+
 func (m *Map) HasHillAt(loc Location) bool {
 	return m.Items[m.Turn()].HasHillAt(loc)
 }
 
 func (m *Map) MyLiveAntAt(loc Location) *MyAnt {
-	return m.MyLiveAntsIndex.At(loc)
+	res := m.MyLiveAntsIndex.At(loc)
+	if res == nil {
+		return nil
+	}
+	if res.Loc(m.Turn()) != loc {
+		panic(fmt.Sprintf("MyLiveAntAt lies: loc: %d, res: %v", loc, *res))
+	}
+	return res
 }

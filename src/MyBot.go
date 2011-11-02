@@ -10,14 +10,14 @@ import (
 const FoodScore = 1000000
 const VisitScore = 1000
 const NeverVisitedScore = 100000
+const EnemyWithdrawalScore = 2000
 
 type MyBot struct {
-	p    Params
-	t    Torus
-	m    *Map
-	cn   *Country
-	gov  *Goverment
-	plan []MyAssignment
+	p   Params
+	t   Torus
+	m   *Map
+	cn  *Country
+	gov *Goverment
 }
 
 func (b *MyBot) Init(p Params) (err os.Error) {
@@ -34,12 +34,6 @@ type myLocator struct {
 
 func (l *myLocator) Dist(from, to Location) int {
 	panic("myLocator.Dist is not implemented")
-}
-
-type MyAssignment struct {
-	Ant    *MyAnt
-	Target Location
-	Score  int
 }
 
 type MyLocatedSet struct {
@@ -61,15 +55,30 @@ func (s *MyLocatedSet) FindNear(at Location, ok func(Location) bool) (Location, 
 	return 0, false
 }
 
-func (b *MyBot) Plan(myPrev []MyAssignment) (myPlan []MyAssignment) {
+func (b *MyBot) Plan() {
 	l := &myLocator{cn: b.cn}
 	p := NewGreedyPlanner(b.t.Size())
 	var workers []Location
 	var targets []Location
 	var scores []int
+	var prev []Assignment
 
 	for _, ant := range b.m.MyLiveAnts {
 		workers = append(workers, ant.Loc(b.m.Turn()))
+		if ant.Path == nil {
+			continue
+		}
+		loc := ant.Loc(b.m.Turn())
+		if loc == ant.Target {
+			// The target is reached
+			ant.Path = nil
+			continue
+		}
+		prev = append(prev, Assignment{
+			Worker: loc,
+			Target: ant.Target,
+			Score:  ant.Score,
+		})
 	}
 
 	var addTarget = func(loc Location, score int) {
@@ -96,36 +105,18 @@ func (b *MyBot) Plan(myPrev []MyAssignment) (myPlan []MyAssignment) {
 			addTarget(prov.Center, score)
 		}
 	}
-	var prev []Assignment
-	for _, myAssign := range myPrev {
-		if !myAssign.Ant.Alive {
-			continue
-		}
-		loc := myAssign.Ant.Loc(b.m.Turn())
-		if loc == myAssign.Target {
-			continue
-		}
-		if b.m.MyLiveAntAt(loc) == nil {
-			fmt.Fprintf(os.Stderr, "MyLiveAnts: %v\n", b.m.MyLiveAnts)
-			fmt.Fprintf(os.Stderr, "b.m.MyLiveAntAt(%v): nil\n", loc)
-		}
-		prev = append(prev, Assignment{
-			Worker: loc,
-			Target: myAssign.Target,
-			Score:  myAssign.Score,
-		})
-	}
+
+	fmt.Fprintf(os.Stderr, "scores: %v\n", scores)
 	plan := p.Plan(l, prev, &MyLocatedSet{workers}, targets, scores)
+	fmt.Fprintf(os.Stderr, "plan = %v\n", plan)
 	for _, assign := range plan {
 		ant := b.m.MyLiveAntAt(assign.Worker)
 		if ant == nil {
 			panic("ant == nil")
 		}
-		myPlan = append(myPlan, MyAssignment{
-			Ant:    ant,
-			Target: assign.Target,
-			Score:  assign.Score,
-		})
+		ant.Path = b.cn.Path(ant.Loc(b.m.Turn()), assign.Target)
+		ant.Target = assign.Target
+		ant.Score = assign.Score
 	}
 	return
 }
@@ -142,7 +133,9 @@ func (b *MyBot) DoTurn(input []Input) (orders []Order, err os.Error) {
 	} else {
 		b.gov.Update()
 	}
-	b.plan = b.Plan(b.plan)
+	b.cn.Dump("/tmp/country.txt")
+
+	b.Plan()
 
 	turn := b.m.Turn()
 	for provInd, rep := range b.gov.TurnRep {
@@ -154,81 +147,19 @@ func (b *MyBot) DoTurn(input []Input) (orders []Order, err os.Error) {
 		if len(rep.Enemy) > 0 {
 			closerProv := b.cn.CloserProv(prov)
 			for _, ant := range rep.MyLiveAnts {
-				path := b.cn.Path(ant.Loc(turn), closerProv.Center)
-				if path == nil {
+				ant.Score = EnemyWithdrawalScore
+				ant.Target = closerProv.Center
+				ant.Path = b.cn.Path(ant.Loc(turn), closerProv.Center)
+
+				if ant.Path == nil {
 					panic("Unable to find a path between an ant and the center of a closer prov")
 				}
-				if path.Len() == 0 {
-					continue
-				}
-				dir := path.Dir(0)
-				if b.m.CanMove(ant.Loc(turn), dir) {
-					b.m.Move(ant, dir)
-				}
 			}
 			continue
 		}
 	}
 
-	fmt.Fprintf(os.Stderr, "turn: %d, plan: %v\n", turn, b.plan)
-	for _, assign := range b.plan {
-		ant := assign.Ant
-		if ant == nil {
-			panic("ant == nil")
-		}
-		path := b.cn.Path(ant.Loc(turn), assign.Target)
-		fmt.Fprintf(os.Stderr, "Path: %v\n", path)
-		if path.Len() == 0 {
-			continue
-		}
-		dir := path.Dir(0)
-		fmt.Fprintf(os.Stderr, "Dir: %c\n", dir)
-		if b.m.CanMove(ant.Loc(turn), dir) {
-			b.m.Move(ant, dir)
-		} else {
-			fmt.Fprintf(os.Stderr, "Can't move!\n")
-		}
-		continue
-	}
-	// Harvest
-	//		if len(rep.Food) > 0 {
-	//			ant := rep.MyLiveAnts[0]
-	//			path := b.cn.Path(ant.Loc(turn), rep.Food[0])
-	//			if path == nil {
-	//				panic("Unable to find a path between an ant and food in the same prov")
-	//			}
-	//			if path.Len() > 0 {
-	//				dir := path.Dir(0)
-	//				if b.m.CanMove(ant.Loc(turn), dir) {
-	//					b.m.Move(ant, dir)
-	//				}
-	//			}
-	//			continue
-	//		}
-	// Discover: move to any adjacent province
-	/*		if len(prov.Conn) > 0 {
-				ant := rep.MyLiveAnts[0]
-				toInd := prov.Conn[rand.Intn(len(prov.Conn))]
-				toProv := b.cn.ProvByIndex(toInd)
-				path := b.cn.Path(ant.Loc(turn), toProv.Center)
-				if path.Len() > 0 {
-					dir := path.Dir(0)
-					if b.m.CanMove(ant.Loc(turn), dir) {
-						b.m.Move(ant, dir)
-						continue
-					}
-				}
-			}
-			// Discover: random move
-			dir := Dirs[rand.Intn(4)]
-			ant := rep.MyLiveAnts[0]
-			if b.m.CanMove(ant.Loc(turn), dir) {
-				b.m.Move(ant, dir)
-			}*/
-
-	//	}
-
-	b.cn.Dump("/tmp/country.txt")
+	b.m.MoveAnts()
 
 	for _, ant := range b.m.MyLiveAnts {
 		if ant.HasLoc(turn + 1) {

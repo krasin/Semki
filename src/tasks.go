@@ -48,8 +48,13 @@ func (s *sorter) Less(i, j int) bool {
 }
 
 func (s *sorter) Swap(i, j int) {
-	s.targets[i], s.targets[j] = s.targets[i], s.targets[j]
-	s.scores[i], s.scores[j] = s.scores[j], s.scores[i]
+	tmpTarget := s.targets[i]
+	s.targets[i] = s.targets[j]
+	s.targets[j] = tmpTarget
+
+	tmpScore := s.scores[i]
+	s.scores[i] = s.scores[j]
+	s.scores[j] = tmpScore
 }
 
 func (p *greedyPlanner) Plan(l Locator, prev []Assignment, workerSet LocatedSet, targets []Location, scores []int) (res []Assignment) {
@@ -87,7 +92,7 @@ func (p *greedyPlanner) Plan(l Locator, prev []Assignment, workerSet LocatedSet,
 	// Sort targets desc
 	sort.Sort(&sorter{targets, scores})
 
-	for _, t := range targets {
+	for i, t := range targets {
 		// Find closest unassigned worker
 		w, found := workerSet.FindNear(t, func(loc Location) bool {
 			return !p.assignedWorkers.Has(loc)
@@ -100,7 +105,7 @@ func (p *greedyPlanner) Plan(l Locator, prev []Assignment, workerSet LocatedSet,
 			// FIXME: stop planning if all workers are set
 			continue
 		}
-		res = append(res, Assignment{Worker: w, Target: t})
+		res = append(res, Assignment{Worker: w, Target: t, Score: scores[i]})
 		p.assignedWorkers.Add(w)
 		p.assignedTargets.Add(t)
 	}

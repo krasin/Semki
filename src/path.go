@@ -1,6 +1,7 @@
 package main
 
 type Path interface {
+	Advance(hops int) bool
 	Append(dir Direction)
 	Len() int
 	Dir(ind int) Direction
@@ -42,6 +43,14 @@ func NewPath(t Torus, from Location) Path {
 		t: t,
 		l: []Location{from},
 	}
+}
+
+func (p *path) Advance(hops int) bool {
+	if hops < 0 || hops > p.Len() {
+		return false
+	}
+	p.l = p.l[hops:]
+	return true
 }
 
 func (p *path) Append(dir Direction) {
