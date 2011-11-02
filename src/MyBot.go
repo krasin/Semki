@@ -166,6 +166,9 @@ func (b *MyBot) Plan() {
 		if ant == nil {
 			panic("ant == nil")
 		}
+		if ant.Target == assign.Target {
+			continue
+		}
 		ant.Path = b.cn.Path(ant.Loc(b.m.Turn()), assign.Target)
 		ant.Target = assign.Target
 		ant.Score = assign.Score

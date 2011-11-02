@@ -63,3 +63,37 @@ func (s *locListMap) Get(at Location) []Location {
 func (s *locListMap) Clear() {
 	s.s.Clear()
 }
+
+type LocIntMap interface {
+	Add(at Location, value int)
+	Get(at Location) int
+	Clear()
+}
+
+type locIntMap struct {
+	a []int
+	s LocSet
+}
+
+func NewLocIntMap(size int) LocIntMap {
+	return &locIntMap{
+		a: make([]int, size),
+		s: NewLocSet(size),
+	}
+}
+
+func (m *locIntMap) Add(at Location, value int) {
+	m.s.Add(at)
+	m.a[at] = value
+}
+
+func (m *locIntMap) Get(at Location) int {
+	if !m.s.Has(at) {
+		return 0
+	}
+	return m.a[at]
+}
+
+func (m *locIntMap) Clear() {
+	m.s.Clear()
+}

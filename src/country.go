@@ -24,6 +24,7 @@ package main
 // of connected cells.
 
 import (
+	"fmt"
 	"os"
 	"sort"
 )
@@ -74,15 +75,18 @@ type Country struct {
 	// This list is used to discover newly connected cells
 	// and adding them to the provinces
 	borders []Location
+
+	provPath_provUsed LocIntMap
 }
 
 // Creates an empty country with initial provinces with centers in my hills
 func NewCountry(m *Map) (cn *Country) {
 	cn = &Country{
-		T:     m.T,
-		m:     m,
-		cells: make([]int, m.T.Size()),
-		dist:  make([]int, m.T.Size()),
+		T:                 m.T,
+		m:                 m,
+		cells:             make([]int, m.T.Size()),
+		dist:              make([]int, m.T.Size()),
+		provPath_provUsed: NewLocIntMap(m.T.Size()),
 	}
 	for i := range cn.cells {
 		cn.cells[i] = -1
@@ -319,8 +323,47 @@ func (cn *Country) PathSlow(from, to Location) (p Path) {
 	return
 }
 
-func (cn *Country) ProvPath(fromProv, toProv *Province) []*Province {
-	panic("ProvPath not implemented")
+func (cn *Country) ProvPath(fromProv, toProv *Province) (res []*Province) {
+	if fromProv == toProv {
+		return
+	}
+	used := cn.provPath_provUsed
+	used.Clear()
+	used.Add(toProv.Center, 1)
+	q := []Location{toProv.Center}
+	var q2 []Location
+	for len(q) > 0 {
+		q, q2 = q2[:0], q
+		for _, loc := range q2 {
+			val := used.Get(loc)
+			if loc == fromProv.Center {
+				// Collect path
+				res = append(res, fromProv)
+				cur := fromProv
+
+				for cur != toProv {
+					for _, ind := range cur.Conn {
+						cell := cn.ProvByIndex(ind).Center
+						if used.Get(cell) == val-1 {
+							cur = cn.Prov(cell)
+							res = append(res, cur)
+							val--
+							break
+						}
+					}
+				}
+				return
+			}
+			for _, ind := range cn.Prov(loc).Conn {
+				cell := cn.ProvByIndex(ind).Center
+				if used.Get(cell) == 0 {
+					q = append(q, cell)
+					used.Add(cell, val+1)
+				}
+			}
+		}
+	}
+	panic("ProvPath: not reachable")
 }
 
 // Path returns an approximately shortest path between two location.
@@ -339,17 +382,31 @@ func (cn *Country) Path(from, to Location) Path {
 			// This is a bug: we can't find a path between two cells in one province
 			panic("PathSlow is unable to find a path between two cells in one province. This is a programmer's mistake!")
 		}
+		return p
 	}
 
 	provPath := cn.ProvPath(fromProv, toProv)
-	path := cn.PathSlow(from, fromProv.Center)
+	if len(provPath) == 0 {
+		panic("len(provPath) == 0")
+	}
+	if len(provPath) == 1 {
+		panic("len(provPath) == 1")
+
+	}
+	path := cn.PathSlow(from, provPath[1].Center)
+	fmt.Fprintf(os.Stderr, "First chunk: %v\n", path)
+	provPath = provPath[1:]
 	for i := range provPath {
 		if i == 0 {
 			continue
 		}
-		AppendPath(path, cn.PathSlow(provPath[i-1].Center, provPath[i].Center))
+		next := cn.PathSlow(provPath[i-1].Center, provPath[i].Center)
+		fmt.Fprintf(os.Stderr, "Next: %v\n", next)
+		AppendPath(path, next)
+		fmt.Fprintf(os.Stderr, "Appended: %v\n", path)
 	}
 	AppendPath(path, cn.PathSlow(toProv.Center, to))
+	fmt.Fprintf(os.Stderr, "Path(%d, %d): %v\n", from, to, path)
 	return path
 	//	panic("Path not implemented")
 }
