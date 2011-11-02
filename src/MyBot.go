@@ -11,11 +11,11 @@ import (
 const FoodScore = 1000000
 const VisitScore = 1000
 const NeverVisitedScore = 100000
-const EnemyWithdrawalScore = 2000
+const EnemyWithdrawalScore = 4000
 const EnemyHillScore = 10000000
 const MoveFromMyHillScore = 10000000
 
-const MaxFindNearCount = 10
+const MaxFindNearCount = 30
 
 type MyBot struct {
 	p          Params
@@ -154,8 +154,8 @@ func (b *MyBot) Plan() {
 			continue
 		}
 		score := NeverVisitedScore
-		age := b.m.Turn() - b.m.LastVisited[prov.Center]
 		if b.m.LastVisited[prov.Center] > 0 {
+			age := b.m.Turn() - b.m.LastVisited[prov.Center]
 			score = age * VisitScore
 		}
 		if score > 0 {
@@ -163,12 +163,12 @@ func (b *MyBot) Plan() {
 		}
 	}
 
-	fmt.Fprintf(os.Stderr, "scores: %v\n", scores)
+	//	fmt.Fprintf(os.Stderr, "scores: %v\n", scores)
 	b.perf.Log("Prepare data for planner")
 
 	plan := p.Plan(l, prev, NewMyLocatedSet(b.m, b.cn, workers, b.locSet, b.locsByProv), targets, scores)
 	b.perf.Log("Planner")
-	fmt.Fprintf(os.Stderr, "plan = %v\n", plan)
+	//	fmt.Fprintf(os.Stderr, "plan = %v\n", plan)
 	for _, assign := range plan {
 		ant := b.m.MyLiveAntAt(assign.Worker)
 		if ant == nil {
@@ -223,8 +223,8 @@ func (b *MyBot) DoTurn(input []Input) (orders []Order, err os.Error) {
 		b.gov.Update()
 	}
 	b.perf.Log("Goverment update")
-	b.cn.Dump("/tmp/country.txt")
-	b.perf.Log("Map dump")
+	//	b.cn.Dump("/tmp/country.txt")
+	//	b.perf.Log("Map dump")
 
 	b.Plan()
 
@@ -234,7 +234,7 @@ func (b *MyBot) DoTurn(input []Input) (orders []Order, err os.Error) {
 		if len(rep.MyLiveAnts) == 0 {
 			continue
 		}
-		if b.m.HasMyHillAt(prov.Center) {
+		if b.m.HasMyHillAt(prov.Center) && len(prov.Conn) > 0 {
 			ant := b.m.MyLiveAntAt(prov.Center)
 			// Don't stay in the hill
 			if ant != nil {
@@ -267,7 +267,7 @@ func (b *MyBot) DoTurn(input []Input) (orders []Order, err os.Error) {
 		if ant.HasLoc(turn + 1) {
 			// This ant has been moved
 			dir := b.t.GuessDir(ant.Loc(turn), ant.Loc(turn+1))
-			fmt.Fprintf(os.Stderr, "guess dir: %c\n", dir)
+			//			fmt.Fprintf(os.Stderr, "guess dir: %c\n", dir)
 			orders = append(orders,
 				Order{
 					Row: b.t.Row(ant.Loc(turn)),

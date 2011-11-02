@@ -345,7 +345,7 @@ func (m *Map) LandNeighbours(loc Location) (res []Location) {
 
 func (m *Map) MoveAnts() {
 	m.ResolveConflicts()
-	fmt.Fprintf(os.Stderr, "MyLiveAnts: %v\n", m.MyLiveAnts)
+	//	fmt.Fprintf(os.Stderr, "MyLiveAnts: %v\n", m.MyLiveAnts)
 	for _, ant := range m.MyLiveAnts {
 		if ant.Path == nil {
 			continue
@@ -370,25 +370,25 @@ func (m *Map) ResolveConflicts() {
 		q = tmpQ[:0]
 
 		for _, ant := range q2 {
-			fmt.Fprintf(os.Stderr, "ResolveConflicts for ant at %v, ", ant.Loc(m.Turn()))
+			//			fmt.Fprintf(os.Stderr, "ResolveConflicts for ant at %v, ", ant.Loc(m.Turn()))
 			if ant.Path == nil {
-				fmt.Fprintf(os.Stderr, "Path == nil\n")
+				//				fmt.Fprintf(os.Stderr, "Path == nil\n")
 				continue
 			}
 			if ant.Path.Len() == 0 {
-				fmt.Fprintf(os.Stderr, "Path is empty\n")
+				//				fmt.Fprintf(os.Stderr, "Path is empty\n")
 				ant.Path = nil
 				continue
 			}
 			dir := ant.Path.Dir(0)
-			fmt.Fprintf(os.Stderr, "dir = %c ", dir)
+			//			fmt.Fprintf(os.Stderr, "dir = %c ", dir)
 			to := m.T.NewLoc(ant.Loc(m.Turn()), dir)
 			ant2 := m.MyLiveAntAt(to)
 			if ant == ant2 {
 				panic(fmt.Sprintf("ant == ant2! loc: %d, newLoc: %d, dir: %c", ant.Loc(m.Turn()), to, dir))
 			}
 			if ant2 == nil {
-				fmt.Fprintf(os.Stderr, "ant2 == nil\n")
+				//				fmt.Fprintf(os.Stderr, "ant2 == nil\n")
 				// FIXME: do something with the case when two ants want to enter one cell
 				continue
 			}
@@ -396,7 +396,7 @@ func (m *Map) ResolveConflicts() {
 				ant2.Path = nil
 			}
 			if ant2.Path == nil {
-				fmt.Fprintf(os.Stderr, "ant2.Path == nil. Success\n")
+				//				fmt.Fprintf(os.Stderr, "ant2.Path == nil. Success\n")
 				tmpPath := ant.Path
 				ant.Path = ant2.Path
 				ant2.Path = tmpPath
@@ -421,7 +421,7 @@ func (m *Map) ResolveConflicts() {
 			}
 			to2 := m.T.NewLoc(ant2.Loc(m.Turn()), dir2)
 			if to2 == ant.Loc(m.Turn()) {
-				fmt.Fprintf(os.Stderr, "*-><-* case. Success!\n")
+				//				fmt.Fprintf(os.Stderr, "*-><-* case. Success!\n")
 				if ant.Path == nil {
 					panic("ant.Path == nil!")
 				}
@@ -453,7 +453,7 @@ func (m *Map) ResolveConflicts() {
 				q = append(q, ant2)
 				continue
 			}
-			fmt.Fprintf(os.Stderr, "Unknown case, ant2 at %v, dir2: %c \n", ant2.Loc(m.Turn()), dir2)
+			//			fmt.Fprintf(os.Stderr, "Unknown case, ant2 at %v, dir2: %c \n", ant2.Loc(m.Turn()), dir2)
 		}
 	}
 }

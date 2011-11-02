@@ -24,7 +24,6 @@ package main
 // of connected cells.
 
 import (
-	"fmt"
 	"os"
 	"sort"
 )
@@ -177,7 +176,7 @@ func filter(a []int, val int) []int {
 func (cn *Country) join(what, with *Province) {
 	whatInd := cn.cells[what.Center]
 	withInd := cn.cells[with.Center]
-	fmt.Fprintf(os.Stderr, "join(what=%d,with=%d)\n", whatInd, withInd)
+	//	fmt.Fprintf(os.Stderr, "join(what=%d,with=%d)\n", whatInd, withInd)
 	what.Size += with.Size
 	with.Size = 0
 	with.Center = what.Center
@@ -338,9 +337,9 @@ func (cn *Country) PathSlow(from, to Location) (p Path) {
 }
 
 func (cn *Country) ProvPath(fromProv, toProv *Province) (res []*Province) {
-	fmt.Fprintf(os.Stderr, "ProvPath, 0\n")
+	//	fmt.Fprintf(os.Stderr, "ProvPath, 0\n")
 	if fromProv == toProv {
-		fmt.Fprintf(os.Stderr, "ProvPath, exit, trivial case\n")
+		//		fmt.Fprintf(os.Stderr, "ProvPath, exit, trivial case\n")
 		return
 	}
 	used := cn.provPath_provUsed
@@ -353,7 +352,7 @@ func (cn *Country) ProvPath(fromProv, toProv *Province) (res []*Province) {
 		for _, loc := range q2 {
 			if loc == fromProv.Center {
 				// Collect path
-				fmt.Fprintf(os.Stderr, "Collecting path...\n")
+				//				fmt.Fprintf(os.Stderr, "Collecting path...\n")
 				res = append(res, fromProv)
 				cur := fromProv
 				val := used.Get(loc)
@@ -374,11 +373,11 @@ func (cn *Country) ProvPath(fromProv, toProv *Province) (res []*Province) {
 						}
 					}
 					if !found {
-						fmt.Fprintf(os.Stderr, "val: %d, cur: %v, toProv: %v, used[toProv]: %d\n", val, cur, toProv, used.Get(toProv.Center))
+						//						fmt.Fprintf(os.Stderr, "val: %d, cur: %v, toProv: %v, used[toProv]: %d\n", val, cur, toProv, used.Get(toProv.Center))
 						panic("not found")
 					}
 				}
-				fmt.Fprintf(os.Stderr, "ProvPath, exit, found\n")
+				//				fmt.Fprintf(os.Stderr, "ProvPath, exit, found\n")
 				return
 			}
 			for _, ind := range cn.Prov(loc).Conn {
@@ -394,7 +393,7 @@ func (cn *Country) ProvPath(fromProv, toProv *Province) (res []*Province) {
 					}
 				}
 				if !found {
-					fmt.Fprintf(os.Stderr, "Could not find back edge for %v -> %v\n", cn.Prov(loc), curProv)
+					//					fmt.Fprintf(os.Stderr, "Could not find back edge for %v -> %v\n", cn.Prov(loc), curProv)
 					panic("Debug check failed")
 				}
 
@@ -437,19 +436,19 @@ func (cn *Country) Path(from, to Location) Path {
 
 	}
 	path := cn.PathSlow(from, provPath[1].Center)
-	fmt.Fprintf(os.Stderr, "First chunk: %v\n", path)
+	//	fmt.Fprintf(os.Stderr, "First chunk: %v\n", path)
 	provPath = provPath[1:]
 	for i := range provPath {
 		if i == 0 {
 			continue
 		}
 		next := cn.PathSlow(provPath[i-1].Center, provPath[i].Center)
-		fmt.Fprintf(os.Stderr, "Next: %v\n", next)
+		//		fmt.Fprintf(os.Stderr, "Next: %v\n", next)
 		AppendPath(path, next)
-		fmt.Fprintf(os.Stderr, "Appended: %v\n", path)
+		//		fmt.Fprintf(os.Stderr, "Appended: %v\n", path)
 	}
 	AppendPath(path, cn.PathSlow(toProv.Center, to))
-	fmt.Fprintf(os.Stderr, "Path(%d, %d): %v\n", from, to, path)
+	//	fmt.Fprintf(os.Stderr, "Path(%d, %d): %v\n", from, to, path)
 	return path
 	//	panic("Path not implemented")
 }
