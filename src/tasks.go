@@ -9,6 +9,10 @@ import (
 const ReassignThresholdRatio = 1.5
 const ReassignDist = 5
 
+type Connector interface {
+	Conn(loc Location) []Location
+}
+
 type Locator interface {
 	Dist(from, to Location) int
 }
