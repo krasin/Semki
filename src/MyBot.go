@@ -178,29 +178,6 @@ func (b *MyBot) Init(p Params) (err os.Error) {
 	return nil
 }
 
-type myLocator struct {
-	cn      *Country
-	fairLoc *fairPathLocator
-}
-
-func (l *myLocator) Dist(from, to Location) int {
-	fromProv := l.cn.Prov(from)
-	toProv := l.cn.Prov(to)
-	if fromProv != toProv {
-		return -1
-	}
-	p := l.cn.PathSlow(from, to)
-	if p == nil {
-		return -1
-	}
-	p2 := l.fairLoc.Dist(from, to)
-	if p.Len() != p2 {
-		fmt.Fprintf(os.Stderr, "DIFF on (from=%d, to=%d) ", from, to)
-	}
-	fmt.Fprintf(os.Stderr, "p.Len(): %d, p2: %d\n", p.Len(), p2)
-	return p.Len()
-}
-
 type MyLocatedSet struct {
 	m          *Map
 	cn         *Country
@@ -262,7 +239,7 @@ func (s *MyLocatedSet) FindNear(at Location, score int, ok func(Location, int, b
 }
 
 func (b *MyBot) Plan() {
-	l := &myLocator{cn: b.cn, fairLoc: b.loc}
+	l := b.loc
 	p := NewGreedyPlanner(b.t.Size())
 	var workers []Location
 	var targets []Location
