@@ -53,32 +53,6 @@ func (f *pathFinder) Path(from, to Location) (p Path) {
 	return
 }
 
-// Encodes up to 27 moves
-type storedPath uint64
-
-func (p storedPath) Len() int {
-	return int(p & 0xFF)
-}
-
-func pathCodeToDirection(code int) Direction {
-	switch code {
-	case 0:
-		return North
-	case 1:
-		return East
-	case 2:
-		return South
-	case 3:
-		return West
-	}
-	panic("PathCodeToDirection: unreachable")
-}
-
-func (p storedPath) Dir(ind int, cols int) Direction {
-	code := int((p >> (8 + uint64(2*ind))) & 0x3)
-	return pathCodeToDirection(code)
-}
-
 type path struct {
 	t Torus
 	l []Location
