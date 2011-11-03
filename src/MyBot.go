@@ -185,10 +185,10 @@ func (b *MyBot) Plan() {
 		if ant.Target == assign.Target {
 			continue
 		}
-		ant.Path = b.cn.Path(ant.Loc(b.m.Turn()), assign.Target)
-		p2 := b.cn.Path(ant.Loc(b.m.Turn()), assign.Target)
+		ant.Path = b.pf.Path(ant.Loc(b.m.Turn()), assign.Target)
+		//		p2 := b.cn.Path(ant.Loc(b.m.Turn()), assign.Target)
 		fmt.Fprintf(os.Stderr, "path: %v\n", ant.Path)
-		fmt.Fprintf(os.Stderr, "p2  : %v\n", p2)
+		//fmt.Fprintf(os.Stderr, "p2  : %v\n", p2)
 		ant.Target = assign.Target
 		ant.Score = assign.Score
 		//		fmt.Fprintf(os.Stderr, "ant: %v\n", *ant)
