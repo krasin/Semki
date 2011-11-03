@@ -293,49 +293,6 @@ func (cn *Country) ProvByIndex(ind int) *Province {
 	return &cn.prov[ind]
 }
 
-func (cn *Country) PathSlow(from, to Location) (p Path) {
-	p = NewPath(cn.T, from)
-	if to == from {
-		return
-	}
-	a := cn.pathSlow_used
-	a.Clear()
-	a.Add(to, 1)
-	q := []Location{to}
-	var q2 []Location
-	for len(q) > 0 {
-		tmp := q2
-		q2 = q
-		q = tmp[:0]
-		for _, loc := range q2 {
-			for _, cell := range cn.m.LandNeighbours(loc) {
-				if a.Get(cell) == 0 {
-					a.Add(cell, a.Get(loc)+1)
-					q = append(q, cell)
-				}
-				if cell == from {
-					break
-				}
-			}
-		}
-	}
-	if a.Get(from) == 0 {
-		return nil
-	}
-	// Now, collect the path
-	cur := from
-	for cur != to {
-		for _, cell := range cn.m.LandNeighbours(cur) {
-			if a.Get(cell) == a.Get(cur)-1 {
-				p.Append(cn.T.GuessDir(cur, cell))
-				cur = cell
-				break
-			}
-		}
-	}
-	return
-}
-
 func (cn *Country) ProvPath(fromProv, toProv *Province) (res []*Province) {
 	//	fmt.Fprintf(os.Stderr, "ProvPath, 0\n")
 	if fromProv == toProv {
