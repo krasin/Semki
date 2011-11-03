@@ -408,55 +408,6 @@ func (cn *Country) ProvPath(fromProv, toProv *Province) (res []*Province) {
 	panic("ProvPath: not reachable")
 }
 
-// Path returns an approximately shortest path between two location.
-// Returns nil if there's no path found
-func (cn *Country) Path(from, to Location) Path {
-	fromProv := cn.Prov(from)
-	toProv := cn.Prov(to)
-	if fromProv == nil || toProv == nil {
-		return nil
-	}
-	if fromProv == toProv {
-		// These locations are in one province.
-		// It's faster to find the real shortest path
-		p := cn.PathSlow(from, to)
-		if p == nil {
-			// This is a bug: we can't find a path between two cells in one province
-			panic("PathSlow is unable to find a path between two cells in one province. This is a programmer's mistake!")
-		}
-		return p
-	}
-
-	provPath := cn.ProvPath(fromProv, toProv)
-	if len(provPath) == 0 {
-		panic("len(provPath) == 0")
-	}
-	if len(provPath) == 1 {
-		panic("len(provPath) == 1")
-
-	}
-	ind := 2
-	if len(provPath) < 3 {
-		ind = 1
-	}
-	path := cn.PathSlow(from, provPath[ind].Center)
-	//	fmt.Fprintf(os.Stderr, "First chunk: %v\n", path)
-	provPath = provPath[ind:]
-	for i := range provPath {
-		if i == 0 {
-			continue
-		}
-		next := cn.PathSlow(provPath[i-1].Center, provPath[i].Center)
-		//		fmt.Fprintf(os.Stderr, "Next: %v\n", next)
-		AppendPath(path, next)
-		//		fmt.Fprintf(os.Stderr, "Appended: %v\n", path)
-	}
-	AppendPath(path, cn.PathSlow(toProv.Center, to))
-	//	fmt.Fprintf(os.Stderr, "Path(%d, %d): %v\n", from, to, path)
-	return path
-	//	panic("Path not implemented")
-}
-
 func (cn *Country) IsOwn(loc Location) bool {
 	return cn.cells[loc] != -1
 }

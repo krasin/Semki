@@ -264,7 +264,7 @@ func (b *MyBot) DoTurn(input []Input) (orders []Order, err os.Error) {
 			if ant != nil {
 				ant.Target = b.cn.ProvByIndex(prov.Conn[rand.Intn(len(prov.Conn))]).Center
 				ant.Score = MoveFromMyHillScore
-				ant.Path = b.cn.Path(prov.Center, ant.Target)
+				ant.Path = b.pf.Path(prov.Center, ant.Target)
 			}
 		}
 		// Enemies
@@ -273,7 +273,7 @@ func (b *MyBot) DoTurn(input []Input) (orders []Order, err os.Error) {
 			for _, ant := range rep.MyLiveAnts {
 				ant.Score = EnemyWithdrawalScore
 				ant.Target = closerProv.Center
-				ant.Path = b.cn.Path(ant.Loc(turn), closerProv.Center)
+				ant.Path = b.pf.Path(ant.Loc(turn), closerProv.Center)
 
 				if ant.Path == nil {
 					panic("Unable to find a path between an ant and the center of a closer prov")
