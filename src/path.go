@@ -1,10 +1,56 @@
 package main
 
+import (
+	"fmt"
+)
+
 type Path interface {
 	Advance(hops int) bool
 	Append(dir Direction)
 	Len() int
 	Dir(ind int) Direction
+}
+
+type PathFinder interface {
+	Path(from, to Location) Path
+}
+
+type pathFinder struct {
+	t Torus
+	c Connector
+	l Locator
+}
+
+func NewPathFinder(t Torus, c Connector, l Locator) PathFinder {
+	return &pathFinder{t: t, c: c, l: l}
+}
+
+func (f *pathFinder) Path(from, to Location) (p Path) {
+	dist := f.l.Dist(from, to)
+	if dist == NoPath {
+		return
+	}
+	p = NewPath(f.t, from)
+	if from == to {
+		return
+	}
+	cur := from
+	for cur != to {
+		found := false
+		for _, conn := range f.c.Conn(cur) {
+			if f.l.Dist(conn, to) == dist-1 {
+				p.Append(f.t.GuessDir(cur, conn))
+				cur = conn
+				found = true
+				dist--
+				break
+			}
+		}
+		if !found {
+			panic(fmt.Sprintf("pathFinder.Path(%d, %d): !found", from, to))
+		}
+	}
+	return
 }
 
 // Encodes up to 27 moves
