@@ -69,9 +69,9 @@ func (l *fairPathLocator) bigIndex(from, to Location) int {
 }
 
 func (l *fairPathLocator) set(from, to Location, dist int) {
-	fmt.Printf("set(%d, %d, dist=%d)\n", from, to, dist)
+	//	fmt.Printf("set(%d, %d, dist=%d)\n", from, to, dist)
 	ind := l.bigIndex(from, to)
-	fmt.Printf("ind: %d\n", ind)
+	//	fmt.Printf("ind: %d\n", ind)
 	l.big[ind] = int16(dist)
 }
 
@@ -107,7 +107,7 @@ func (l *fairPathLocator) NeedUpdate() bool {
 }
 
 func (l *fairPathLocator) Add(loc Location) {
-	fmt.Printf("Add(%d)\n", loc)
+	//	fmt.Printf("Add(%d)\n", loc)
 	if l.hasLoc(loc) {
 		return
 	}

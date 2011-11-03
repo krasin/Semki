@@ -1,19 +1,21 @@
 package main
 
 import (
-	"fmt"
+	//	"fmt"
+	"rand"
 	"testing"
 )
 
 type fairLocatorTest struct {
-	n    int
-	adj  [][]int      // just for row < col
-	dist [][]int      // just for tow < col
-	run  [][]Location // add order
+	n                  int
+	adj                [][]int      // just for row < col
+	dist               [][]int      // just for tow < col
+	run                [][]Location // add order
+	skipDistValidation bool         // this is set by pseudo-random tests until we would get a way to test them
 }
 
 func (t *fairLocatorTest) Conn(loc Location) (res []Location) {
-	fmt.Printf("Conn, loc: %d\n", loc)
+	//	fmt.Printf("Conn, loc: %d\n", loc)
 	ind := int(loc)
 	for i := 0; i < t.n; i++ {
 		if i == ind {
@@ -24,11 +26,33 @@ func (t *fairLocatorTest) Conn(loc Location) (res []Location) {
 		if from > to {
 			from, to = to, from
 		}
-		fmt.Printf("from: %d, to: %d, t.adj: %v\n", from, to, t.adj)
+		//		fmt.Printf("from: %d, to: %d, t.adj: %v\n", from, to, t.adj)
 		if t.adj[from][to-from-1] == 1 {
 			res = append(res, Location(i))
 		}
 	}
+	return
+}
+
+func pseudoRandomTest(n int, seed int64, p int) (test fairLocatorTest) {
+	test.n = n
+	test.run = [][]Location{make([]Location, n)}
+	for i := 0; i < n; i++ {
+		test.run[0][i] = Location(i)
+	}
+	rnd := rand.New(rand.NewSource(seed))
+	for i := 0; i < n; i++ {
+		var line []int
+		for j := i + 1; j < n; j++ {
+			adj := 0
+			if rnd.Intn(100) < p {
+				adj = 1
+			}
+			line = append(line, adj)
+		}
+		test.adj = append(test.adj, line)
+	}
+	test.skipDistValidation = true
 	return
 }
 
@@ -100,6 +124,13 @@ var fairLocatorTests = []fairLocatorTest{
 			[]Location{3, 0, 1, 2},
 		},
 	},
+	pseudoRandomTest(3, 0, 50),
+	pseudoRandomTest(10, 0, 50),
+	pseudoRandomTest(100, 0, 50),
+	pseudoRandomTest(200, 0, 50),
+	pseudoRandomTest(200, 0, 20),
+	pseudoRandomTest(200, 0, 70),
+	pseudoRandomTest(200, 0, 10),
 }
 
 func cleanBig() {
@@ -118,6 +149,9 @@ func TestFairLocator(t *testing.T) {
 				for l.NeedUpdate() {
 					l.UpdateStep()
 				}
+			}
+			if test.skipDistValidation {
+				continue
 			}
 			for i := 0; i < test.n; i++ {
 				for j := 0; j < i; j++ {
