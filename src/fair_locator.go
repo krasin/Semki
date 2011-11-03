@@ -114,8 +114,8 @@ func (l *FairLocator) UpdateStep() {
 	}
 }
 
-func (l *FairLocator) Update() {
-	for l.NeedUpdate() {
+func (l *FairLocator) Update(ok func() bool) {
+	for l.NeedUpdate() && ok() {
 		l.UpdateStep()
 	}
 }

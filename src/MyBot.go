@@ -21,15 +21,17 @@ const MaxFindNearCount = 30
 var big = make([]int16, 200*1000*1000)
 
 type MyBot struct {
-	p          Params
-	t          Torus
-	m          *Map
-	cn         *Country
-	gov        *Goverment
-	locsByProv LocListMap
-	locSet     LocSet
-	perf       *Timing
-	loc        *FairLocator
+	p               Params
+	t               Torus
+	m               *Map
+	cn              *Country
+	gov             *Goverment
+	locsByProv      LocListMap
+	locSet          LocSet
+	perf            *Timing
+	loc             *FairLocator
+	pf              PathFinder
+	LocatorBudgetMs int
 }
 
 func (b *MyBot) Init(p Params) (err os.Error) {
@@ -40,6 +42,8 @@ func (b *MyBot) Init(p Params) (err os.Error) {
 	b.locsByProv = NewLocListMap(b.t.Size())
 	b.locSet = NewLocSet(b.t.Size())
 	b.loc = NewFairLocator(b.m, big)
+	b.pf = NewPathFinder(b.t, b.m, b.loc)
+	b.LocatorBudgetMs = 100
 	return nil
 }
 
@@ -182,7 +186,9 @@ func (b *MyBot) Plan() {
 			continue
 		}
 		ant.Path = b.cn.Path(ant.Loc(b.m.Turn()), assign.Target)
+		p2 := b.cn.Path(ant.Loc(b.m.Turn()), assign.Target)
 		fmt.Fprintf(os.Stderr, "path: %v\n", ant.Path)
+		fmt.Fprintf(os.Stderr, "p2  : %v\n", p2)
 		ant.Target = assign.Target
 		ant.Score = assign.Score
 		//		fmt.Fprintf(os.Stderr, "ant: %v\n", *ant)
@@ -201,6 +207,11 @@ func NewTiming() *Timing {
 	return &Timing{start: now, last: now}
 }
 
+func (t *Timing) CurMs() int {
+	now := time.Nanoseconds()
+	return int((now - t.last) / (1000 * 1000))
+}
+
 func (t *Timing) Log(name string) {
 	now := time.Nanoseconds()
 	fmt.Fprintf(os.Stderr, "%s: %d ms\n", name, (now-t.last)/(1000*1000))
@@ -217,8 +228,11 @@ func (b *MyBot) DoTurn(input []Input) (orders []Order, err os.Error) {
 	b.m.Update(input)
 	b.perf.Log("Map update")
 
+	fmt.Fprintf(os.Stderr, "len(NewCells): %d\n", len(b.m.NewCells))
 	b.loc.Add(b.m.NewCells...)
-	b.loc.Update()
+	b.loc.Update(func() bool {
+		return b.perf.CurMs() < b.LocatorBudgetMs
+	})
 	b.perf.Log("Fair locator update")
 
 	if b.cn == nil {
