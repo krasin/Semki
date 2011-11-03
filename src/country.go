@@ -74,20 +74,15 @@ type Country struct {
 	// This list is used to discover newly connected cells
 	// and adding them to the provinces
 	borders []Location
-
-	pathSlow_used     LocIntMap
-	provPath_provUsed LocIntMap
 }
 
 // Creates an empty country with initial provinces with centers in my hills
 func NewCountry(m *Map) (cn *Country) {
 	cn = &Country{
-		T:                 m.T,
-		m:                 m,
-		cells:             make([]int, m.T.Size()),
-		dist:              make([]int, m.T.Size()),
-		pathSlow_used:     NewLocIntMap(m.T.Size()),
-		provPath_provUsed: NewLocIntMap(m.T.Size()),
+		T:     m.T,
+		m:     m,
+		cells: make([]int, m.T.Size()),
+		dist:  make([]int, m.T.Size()),
 	}
 	for i := range cn.cells {
 		cn.cells[i] = -1
