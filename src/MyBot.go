@@ -29,7 +29,7 @@ type MyBot struct {
 	locsByProv LocListMap
 	locSet     LocSet
 	perf       *Timing
-	loc        *fairPathLocator
+	loc        *FairLocator
 }
 
 func (b *MyBot) Init(p Params) (err os.Error) {

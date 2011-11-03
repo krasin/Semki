@@ -9,7 +9,7 @@ type locPair struct {
 	b Location
 }
 
-type fairPathLocator struct {
+type FairLocator struct {
 	conn    Connector
 	big     []int16
 	loc2ind []int
@@ -20,19 +20,19 @@ type fairPathLocator struct {
 	buf      []locPair
 }
 
-func NewFairPathLocator(conn Connector, big []int16) *fairPathLocator {
-	return &fairPathLocator{
+func NewFairPathLocator(conn Connector, big []int16) *FairLocator {
+	return &FairLocator{
 		conn:    conn,
 		big:     big,
 		loc2ind: make([]int, 40000),
 	}
 }
 
-func (l *fairPathLocator) hasLoc(loc Location) bool {
+func (l *FairLocator) hasLoc(loc Location) bool {
 	return l.loc2ind[int(loc)] > 0
 }
 
-func (l *fairPathLocator) bigIndex(from, to Location) int {
+func (l *FairLocator) bigIndex(from, to Location) int {
 	fromInd := l.loc2ind[int(from)] - 1
 	toInd := l.loc2ind[int(to)] - 1
 	if fromInd == -1 || toInd == -1 {
@@ -48,7 +48,7 @@ func (l *fairPathLocator) bigIndex(from, to Location) int {
 	return s + (toInd - fromInd - 1)
 }
 
-func (l *fairPathLocator) set(from, to Location, dist int) {
+func (l *FairLocator) set(from, to Location, dist int) {
 	//	fmt.Printf("set(%d, %d, dist=%d)\n", from, to, dist)
 	ind := l.bigIndex(from, to)
 	//	fmt.Printf("ind: %d\n", ind)
@@ -56,7 +56,7 @@ func (l *fairPathLocator) set(from, to Location, dist int) {
 }
 
 // Update distances for loc looking at from
-func (l *fairPathLocator) updatePair(loc, from Location) {
+func (l *FairLocator) updatePair(loc, from Location) {
 	was := false
 	if loc == from {
 		return
@@ -82,11 +82,11 @@ func (l *fairPathLocator) updatePair(loc, from Location) {
 	}
 }
 
-func (l *fairPathLocator) NeedUpdate() bool {
+func (l *FairLocator) NeedUpdate() bool {
 	return len(l.toUpdate) > 0
 }
 
-func (l *fairPathLocator) Add(locs ...Location) {
+func (l *FairLocator) Add(locs ...Location) {
 	//	fmt.Printf("Add(%d)\n", loc)
 	for _, loc := range locs {
 		if l.hasLoc(loc) {
@@ -107,20 +107,20 @@ func (l *fairPathLocator) Add(locs ...Location) {
 	}
 }
 
-func (l *fairPathLocator) UpdateStep() {
+func (l *FairLocator) UpdateStep() {
 	l.toUpdate, l.buf = l.buf[:0], l.toUpdate
 	for _, pair := range l.buf {
 		l.updatePair(pair.a, pair.b)
 	}
 }
 
-func (l *fairPathLocator) Update() {
+func (l *FairLocator) Update() {
 	for l.NeedUpdate() {
 		l.UpdateStep()
 	}
 }
 
-func (l *fairPathLocator) Dist(from, to Location) int {
+func (l *FairLocator) Dist(from, to Location) int {
 	if from == to {
 		return 0
 	}
