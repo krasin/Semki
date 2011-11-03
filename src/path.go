@@ -38,7 +38,7 @@ func (f *pathFinder) Path(from, to Location) (p Path) {
 	for cur != to {
 		found := false
 		for _, conn := range f.c.Conn(cur) {
-			if f.l.Dist(conn, to) == dist-1 {
+			if f.l.Dist(conn, to) <= dist-1 {
 				p.Append(f.t.GuessDir(cur, conn))
 				cur = conn
 				found = true
