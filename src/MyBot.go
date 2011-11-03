@@ -18,6 +18,8 @@ const MoveFromMyHillScore = 10000000
 
 const MaxFindNearCount = 30
 
+const GridSize = 8
+
 var big = make([]int16, 200*1000*1000)
 
 type MyBot struct {
@@ -32,6 +34,7 @@ type MyBot struct {
 	loc             *FairLocator
 	pf              PathFinder
 	LocatorBudgetMs int
+	gridSet         *GridLocatedSet
 }
 
 func (b *MyBot) Init(p Params) (err os.Error) {
@@ -44,7 +47,90 @@ func (b *MyBot) Init(p Params) (err os.Error) {
 	b.loc = NewFairLocator(b.m, big)
 	b.pf = NewPathFinder(b.t, b.m, b.loc)
 	b.LocatorBudgetMs = 100
+	b.gridSet = NewGridLocatedSet(b.t, b.m, GridSize)
 	return nil
+}
+
+type GridLocatedSet struct {
+	t          Torus
+	m          *Map
+	k          int
+	antsByProv LocListMap
+	locSet     LocSet
+}
+
+func NewGridLocatedSet(t Torus, m *Map, k int) *GridLocatedSet {
+	return &GridLocatedSet{
+		t:          t,
+		k:          k,
+		m:          m,
+		antsByProv: NewLocListMap(t.Size()),
+		locSet:     NewLocSet(t.Size()),
+	}
+}
+
+func (s *GridLocatedSet) GridLoc(loc Location) Location {
+	row, col := s.t.Row(loc), s.t.Col(loc)
+	row = (row / s.k) * s.k
+	col = (col / s.k) * s.k
+	return s.t.Loc(row, col)
+}
+
+func (s *GridLocatedSet) Update() {
+	s.antsByProv.Clear()
+	for _, ant := range s.m.MyLiveAnts {
+		loc := ant.Loc(s.m.Turn())
+		s.antsByProv.Add(s.GridLoc(loc), loc)
+	}
+}
+
+func (s *GridLocatedSet) Conn(loc Location) []Location {
+	loc = s.GridLoc(loc)
+	return []Location{
+		s.t.ShiftLoc(loc, -s.k, 0),
+		s.t.ShiftLoc(loc, 0, -s.k),
+		s.t.ShiftLoc(loc, s.k, 0),
+		s.t.ShiftLoc(loc, 0, s.k),
+	}
+}
+
+func (s *GridLocatedSet) FindNear(at Location, score int, ok func(Location, int, bool) bool) (Location, bool) {
+	s.locSet.Clear()
+	start := s.GridLoc(at)
+
+	s.locSet.Add(start)
+	q := []Location{start}
+	var q2 []Location
+	count := 0
+	for len(q) > 0 {
+		q, q2 = q2[:0], q
+		for _, gridLoc := range q2 {
+			for _, ant := range s.antsByProv.Get(gridLoc) {
+				if ok(ant, score, gridLoc == start) {
+					return ant, true
+				}
+				count++
+				if count > MaxFindNearCount {
+					return 0, false
+				}
+			}
+			for _, other := range s.Conn(gridLoc) {
+				if !s.locSet.Has(other) {
+					q = append(q, other)
+					s.locSet.Add(other)
+				}
+			}
+		}
+	}
+	return 0, false
+}
+
+func (s *GridLocatedSet) All() (res []Location) {
+	res = make([]Location, len(s.m.MyLiveAnts))
+	for i, ant := range s.m.MyLiveAnts {
+		res[i] = ant.Loc(s.m.Turn())
+	}
+	return
 }
 
 type MyLocatedSet struct {
@@ -174,7 +260,8 @@ func (b *MyBot) Plan() {
 	//	fmt.Fprintf(os.Stderr, "scores: %v\n", scores)
 	b.perf.Log("Prepare data for planner")
 
-	plan := p.Plan(l, prev, NewMyLocatedSet(b.m, b.cn, workers, b.locSet, b.locsByProv), targets, scores)
+	//	mls := NewMyLocatedSet(b.m, b.cn, workers, b.locSet, b.locsByProv)
+	plan := p.Plan(l, prev, b.gridSet, targets, scores)
 	b.perf.Log("Planner")
 	fmt.Fprintf(os.Stderr, "plan = %v\n", plan)
 	for _, assign := range plan {
@@ -235,6 +322,9 @@ func (b *MyBot) DoTurn(input []Input) (orders []Order, err os.Error) {
 	})
 	b.perf.Log("Fair locator update")
 
+	b.gridSet.Update()
+	b.perf.Log("GridLocatedSet update")
+
 	if b.cn == nil {
 		b.cn = NewCountry(b.m)
 	} else {
@@ -266,20 +356,6 @@ func (b *MyBot) DoTurn(input []Input) (orders []Order, err os.Error) {
 				ant.Score = MoveFromMyHillScore
 				ant.Path = b.pf.Path(prov.Center, ant.Target)
 			}
-		}
-		// Enemies
-		if len(rep.Enemy) > 0 {
-			closerProv := b.cn.CloserProv(prov)
-			for _, ant := range rep.MyLiveAnts {
-				ant.Score = EnemyWithdrawalScore
-				ant.Target = closerProv.Center
-				ant.Path = b.pf.Path(ant.Loc(turn), closerProv.Center)
-
-				if ant.Path == nil {
-					panic("Unable to find a path between an ant and the center of a closer prov")
-				}
-			}
-			continue
 		}
 	}
 	b.perf.Log("Withdrawal from enemies")
