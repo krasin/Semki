@@ -133,66 +133,6 @@ func (s *GridLocatedSet) All() (res []Location) {
 	return
 }
 
-type MyLocatedSet struct {
-	m          *Map
-	cn         *Country
-	locs       []Location
-	locSet     LocSet
-	locsByProv LocListMap
-}
-
-func NewMyLocatedSet(m *Map, cn *Country, locs []Location, locSet LocSet, locsByProv LocListMap) (s *MyLocatedSet) {
-	s = &MyLocatedSet{m: m, cn: cn, locs: locs, locSet: locSet, locsByProv: locsByProv}
-	s.locsByProv.Clear()
-	for _, loc := range locs {
-		s.locsByProv.Add(cn.Prov(loc).Center, loc)
-	}
-	return
-}
-
-func (s *MyLocatedSet) All() (res []Location) {
-	res = make([]Location, len(s.locs))
-	copy(res, s.locs)
-	return
-}
-
-func (s *MyLocatedSet) FindNear(at Location, score int, ok func(Location, int, bool) bool) (Location, bool) {
-	if ant := s.m.MyLiveAntAt(at); ant != nil && ok(at, score, true) {
-		return at, true
-	}
-	start := s.cn.Prov(at)
-	if start == nil {
-		return 0, false
-	}
-	s.locSet.Clear()
-	s.locSet.Add(start.Center)
-	q := []*Province{start}
-	var q2 []*Province
-	count := 0
-	for len(q) > 0 {
-		q, q2 = q2[:0], q
-		for _, prov := range q2 {
-			for _, w := range s.locsByProv.Get(prov.Center) {
-				if ok(w, score, prov == start) {
-					return w, true
-				}
-				count++
-				if count > MaxFindNearCount {
-					return 0, false
-				}
-			}
-			for _, other := range prov.Conn {
-				otherProv := s.cn.ProvByIndex(other)
-				if !s.locSet.Has(otherProv.Center) {
-					q = append(q, s.cn.Prov(otherProv.Center))
-					s.locSet.Add(otherProv.Center)
-				}
-			}
-		}
-	}
-	return 0, false
-}
-
 func (b *MyBot) Plan() {
 	l := b.loc
 	p := NewGreedyPlanner(b.t.Size())
