@@ -39,7 +39,7 @@ func (b *MyBot) Init(p Params) (err os.Error) {
 	b.m = NewMap(b.t, p.ViewRadius2)
 	b.locsByProv = NewLocListMap(b.t.Size())
 	b.locSet = NewLocSet(b.t.Size())
-	b.loc = NewFairPathLocator(b.m, big)
+	b.loc = NewFairLocator(b.m, big)
 	return nil
 }
 

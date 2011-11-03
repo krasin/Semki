@@ -20,7 +20,7 @@ type FairLocator struct {
 	buf      []locPair
 }
 
-func NewFairPathLocator(conn Connector, big []int16) *FairLocator {
+func NewFairLocator(conn Connector, big []int16) *FairLocator {
 	return &FairLocator{
 		conn:    conn,
 		big:     big,

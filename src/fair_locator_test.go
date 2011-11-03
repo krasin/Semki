@@ -143,7 +143,7 @@ func TestFairLocator(t *testing.T) {
 	for testInd, test := range fairLocatorTests {
 		for runInd, run := range test.run {
 			cleanBig()
-			l := NewFairPathLocator(&test, big)
+			l := NewFairLocator(&test, big)
 			for _, loc := range run {
 				l.Add(loc)
 				for l.NeedUpdate() {
