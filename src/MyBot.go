@@ -26,8 +26,6 @@ type MyBot struct {
 	p               Params
 	t               Torus
 	m               *Map
-	cn              *Country
-	gov             *Goverment
 	locsByProv      LocListMap
 	locSet          LocSet
 	perf            *Timing
@@ -165,42 +163,12 @@ func (b *MyBot) Plan() {
 	}
 
 	for _, food := range b.m.Food() {
-		if b.cn.IsOwn(food) {
-			addTarget(food, FoodScore)
-		}
-	}
-	for _, hill := range b.m.EnemyHills() {
-		if b.cn.IsOwn(hill.Loc) {
-			addTarget(hill.Loc, EnemyHillScore)
-		}
-	}
-
-	for i := 0; i < b.cn.ProvCount(); i++ {
-		prov := b.cn.ProvByIndex(i)
-		if !prov.Live() || b.m.HasMyHillAt(prov.Center) {
-			continue
-		}
-		if b.m.LastVisited[prov.Center] > 0 {
-			age := b.m.Turn() - b.m.LastVisited[prov.Center]
-			if age > 0 {
-				addTarget(prov.Center, age*VisitScore)
-			}
-		} else {
-			addTarget(prov.Center, NeverVisitedScore)
-			for _, dir := range Dirs {
-				newLoc := b.t.NewLoc(prov.Center, dir)
-				if b.m.Terrain[newLoc] == Land {
-					addTarget(newLoc, NeverVisitedScore2)
-					break
-				}
-			}
-		}
+		addTarget(food, FoodScore)
 	}
 
 	//	fmt.Fprintf(os.Stderr, "scores: %v\n", scores)
 	b.perf.Log("Prepare data for planner")
 
-	//	mls := NewMyLocatedSet(b.m, b.cn, workers, b.locSet, b.locsByProv)
 	plan := p.Plan(l, prev, b.gridSet, targets, scores)
 	b.perf.Log("Planner")
 	fmt.Fprintf(os.Stderr, "plan = %v\n", plan)
@@ -213,7 +181,6 @@ func (b *MyBot) Plan() {
 			continue
 		}
 		ant.Path = b.pf.Path(ant.Loc(b.m.Turn()), assign.Target)
-		//		p2 := b.cn.Path(ant.Loc(b.m.Turn()), assign.Target)
 		fmt.Fprintf(os.Stderr, "path: %v\n", ant.Path)
 		//fmt.Fprintf(os.Stderr, "p2  : %v\n", p2)
 		ant.Target = assign.Target
@@ -265,40 +232,9 @@ func (b *MyBot) DoTurn(input []Input) (orders []Order, err os.Error) {
 	b.gridSet.Update()
 	b.perf.Log("GridLocatedSet update")
 
-	if b.cn == nil {
-		b.cn = NewCountry(b.m)
-	} else {
-		b.cn.Update()
-	}
-	b.perf.Log("Country update")
-	if b.gov == nil {
-		b.gov = NewGoverment(b.cn, b.m)
-	} else {
-		b.gov.Update()
-	}
-	b.perf.Log("Goverment update")
-	//	b.cn.Dump("/tmp/country.txt")
-	//	b.perf.Log("Map dump")
-
 	b.Plan()
 
 	turn := b.m.Turn()
-	for provInd, rep := range b.gov.TurnRep {
-		prov := b.cn.ProvByIndex(provInd)
-		if len(rep.MyLiveAnts) == 0 {
-			continue
-		}
-		if b.m.HasMyHillAt(prov.Center) && len(prov.Conn) > 0 {
-			ant := b.m.MyLiveAntAt(prov.Center)
-			// Don't stay in the hill
-			if ant != nil {
-				ant.Target = b.cn.ProvByIndex(prov.Conn[rand.Intn(len(prov.Conn))]).Center
-				ant.Score = MoveFromMyHillScore
-				ant.Path = b.pf.Path(prov.Center, ant.Target)
-			}
-		}
-	}
-	b.perf.Log("Withdrawal from enemies")
 
 	b.m.MoveAnts()
 	b.perf.Log("MoveAnts")
