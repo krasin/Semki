@@ -4,7 +4,6 @@ TARG=MyBot
 GOFILES=\
 	ants.go\
 	country.go\
-	goverment.go\
 	fair_locator.go\
 	locset.go\
 	main.go\
