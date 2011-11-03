@@ -106,22 +106,24 @@ func (l *fairPathLocator) NeedUpdate() bool {
 	return len(l.toUpdate) > 0
 }
 
-func (l *fairPathLocator) Add(loc Location) {
+func (l *fairPathLocator) Add(locs ...Location) {
 	//	fmt.Printf("Add(%d)\n", loc)
-	if l.hasLoc(loc) {
-		return
-	}
-	ind := len(l.ind2loc)
-	l.ind2loc = append(l.ind2loc, loc)
-	l.loc2ind[int(loc)] = ind + 1
-
-	for _, conn := range l.conn.Conn(loc) {
-		if !l.hasLoc(conn) {
+	for _, loc := range locs {
+		if l.hasLoc(loc) {
 			continue
 		}
-		l.set(loc, conn, 1)
-		l.toUpdate = append(l.toUpdate, locPair{loc, conn})
-		l.toUpdate = append(l.toUpdate, locPair{conn, loc})
+		ind := len(l.ind2loc)
+		l.ind2loc = append(l.ind2loc, loc)
+		l.loc2ind[int(loc)] = ind + 1
+
+		for _, conn := range l.conn.Conn(loc) {
+			if !l.hasLoc(conn) {
+				continue
+			}
+			l.set(loc, conn, 1)
+			l.toUpdate = append(l.toUpdate, locPair{loc, conn})
+			l.toUpdate = append(l.toUpdate, locPair{conn, loc})
+		}
 	}
 }
 
@@ -132,7 +134,16 @@ func (l *fairPathLocator) UpdateStep() {
 	}
 }
 
+func (l *fairPathLocator) Update() {
+	for l.NeedUpdate() {
+		l.UpdateStep()
+	}
+}
+
 func (l *fairPathLocator) Dist(from, to Location) int {
+	if from == to {
+		return 0
+	}
 	ind := l.bigIndex(from, to)
 	if ind == -1 {
 		return NoPath
@@ -153,6 +164,7 @@ type MyBot struct {
 	locsByProv LocListMap
 	locSet     LocSet
 	perf       *Timing
+	loc        *fairPathLocator
 }
 
 func (b *MyBot) Init(p Params) (err os.Error) {
@@ -162,11 +174,13 @@ func (b *MyBot) Init(p Params) (err os.Error) {
 	b.m = NewMap(b.t, p.ViewRadius2)
 	b.locsByProv = NewLocListMap(b.t.Size())
 	b.locSet = NewLocSet(b.t.Size())
+	b.loc = NewFairPathLocator(b.m, big)
 	return nil
 }
 
 type myLocator struct {
-	cn *Country
+	cn      *Country
+	fairLoc *fairPathLocator
 }
 
 func (l *myLocator) Dist(from, to Location) int {
@@ -179,6 +193,11 @@ func (l *myLocator) Dist(from, to Location) int {
 	if p == nil {
 		return -1
 	}
+	p2 := l.fairLoc.Dist(from, to)
+	if p.Len() != p2 {
+		fmt.Fprintf(os.Stderr, "DIFF on (from=%d, to=%d) ", from, to)
+	}
+	fmt.Fprintf(os.Stderr, "p.Len(): %d, p2: %d\n", p.Len(), p2)
 	return p.Len()
 }
 
@@ -243,7 +262,7 @@ func (s *MyLocatedSet) FindNear(at Location, score int, ok func(Location, int, b
 }
 
 func (b *MyBot) Plan() {
-	l := &myLocator{cn: b.cn}
+	l := &myLocator{cn: b.cn, fairLoc: b.loc}
 	p := NewGreedyPlanner(b.t.Size())
 	var workers []Location
 	var targets []Location
@@ -355,6 +374,10 @@ func (b *MyBot) DoTurn(input []Input) (orders []Order, err os.Error) {
 	b.perf = NewTiming()
 	b.m.Update(input)
 	b.perf.Log("Map update")
+
+	b.loc.Add(b.m.NewCells...)
+	b.loc.Update()
+	b.perf.Log("Fair locator update")
 
 	if b.cn == nil {
 		b.cn = NewCountry(b.m)

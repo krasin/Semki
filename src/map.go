@@ -149,6 +149,7 @@ type Map struct {
 	MyLiveAntsIndex *MyAntIndex
 	LastVisited     []int
 	Next            *Items
+	NewCells        []Location
 }
 
 func NewMap(t Torus, viewRadius2 int) (m *Map) {
@@ -289,11 +290,13 @@ func (m *Map) GenerateViewMask(viewRadius2 int) {
 }
 
 func (m *Map) UpdateVisibility() {
+	m.NewCells = m.NewCells[:0]
 	for _, ant := range m.MyLiveAnts {
 		for i := 0; i < len(m.ViewMaskRow); i++ {
 			loc2 := m.T.ShiftLoc(ant.Loc(m.Turn()), m.ViewMaskRow[i], m.ViewMaskCol[i])
 			if m.Terrain[loc2] == Unknown {
 				m.Terrain[loc2] = Land
+				m.NewCells = append(m.NewCells, loc2)
 			}
 		}
 	}
@@ -332,13 +335,11 @@ func (m *Map) Discovered(loc Location) bool {
 }
 
 func (m *Map) LandNeighbours(loc Location) (res []Location) {
-	f := func(cell Location) {
+	for _, dir := range Dirs {
+		cell := m.T.NewLoc(loc, dir)
 		if m.Terrain[cell] == Land {
 			res = append(res, cell)
 		}
-	}
-	for _, dir := range Dirs {
-		f(m.T.NewLoc(loc, dir))
 	}
 	return
 }
@@ -358,6 +359,10 @@ func (m *Map) MoveAnts() {
 			//			fmt.Fprintf(os.Stderr, "Can't move, dir: %c, ant loc: %d\n", dir, ant.Loc(m.Turn()))
 		}
 	}
+}
+
+func (m *Map) Conn(loc Location) (res []Location) {
+	return m.LandNeighbours(loc)
 }
 
 func (m *Map) ResolveConflicts() {

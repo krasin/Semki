@@ -165,6 +165,13 @@ func TestFairLocator(t *testing.T) {
 						t.Errorf("test #%d: run #d: %d = test.dist[%d][%d-%d-1] != l.Dist(%d, %d) = %d", testInd, runInd, want, j, i, j, i, j, got)
 					}
 				}
+				{
+					got := l.Dist(Location(i), Location(i))
+					if got != 0 {
+						t.Errorf("test #%d: run #%d: l.Dist(%d, %d) == %d, but 0 expected", testInd, runInd, i, i, got)
+					}
+
+				}
 			}
 		}
 	}
