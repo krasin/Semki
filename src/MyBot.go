@@ -20,6 +20,8 @@ const MaxFindNearCount = 30
 
 const GridSize = 8
 
+const XaosP = 0.25
+
 var big = make([]int16, 200*1000*1000)
 
 type MyBot struct {
@@ -217,6 +219,64 @@ func (t *Timing) Total() {
 	fmt.Fprintf(os.Stderr, "total: %d ms\n", (now-t.start)/(1000*1000))
 }
 
+func (b *MyBot) FindClosestHill(at Location) (res Location) {
+	res = at
+	bestDist := -1
+	for _, hill := range b.m.MyHills() {
+		dist := b.loc.Dist(at, hill.Loc)
+		if dist != NoPath && (bestDist == -1 || dist < bestDist) {
+			bestDist = dist
+			res = hill.Loc
+		}
+	}
+	return
+}
+
+func GetRandomDirection(dirs []Direction, scores []int) Direction {
+	fmt.Fprintf(os.Stderr, "GetRandomDirection, dirs: %v, scores: %v\n", dirs, scores)
+	min := (1 << 31) - 1
+	for _, s := range scores {
+		if min > s {
+			min = s
+		}
+	}
+	fmt.Fprintf(os.Stderr, "min: %v\n", min)
+
+	var sum int
+	for i := range scores {
+		scores[i] -= min
+		sum += scores[i]
+	}
+	sumf := float64(sum)
+	fmt.Fprintf(os.Stderr, "scores: %v\n", scores)
+	h := XaosP / float64(len(scores))
+	p := make([]float64, len(scores))
+	var x float64
+	if sum > 0 {
+		x = h * sumf / (1 - float64(len(scores))*h)
+	} else {
+		x = 1
+	}
+	fmt.Fprintf(os.Stderr, "h: %v, x: %v\n", h, x)
+
+	for i := range scores {
+		p[i] = (float64(scores[i]) + x) / (sumf + float64(len(scores))*x)
+	}
+	fmt.Fprintf(os.Stderr, "p: %v\n", p)
+	v := rand.Float64()
+	for i, cur := range p {
+		if v <= cur {
+			return dirs[i]
+		}
+		v -= cur
+	}
+	return dirs[0]
+}
+
+func (b *MyBot) CheckMax(hill, loc Location, max int) bool {
+	panic("CheckMax not implemented")
+}
+
 func (b *MyBot) DoTurn(input []Input) (orders []Order, err os.Error) {
 	b.perf = NewTiming()
 	b.m.Update(input)
@@ -232,9 +292,50 @@ func (b *MyBot) DoTurn(input []Input) (orders []Order, err os.Error) {
 	b.gridSet.Update()
 	b.perf.Log("GridLocatedSet update")
 
-	b.Plan()
+	//	b.Plan()
 
 	turn := b.m.Turn()
+	for _, ant := range b.m.MyLiveAnts {
+		loc := ant.Loc(b.m.Turn())
+		var a []Direction
+		var s []int
+		hill := b.FindClosestHill(loc)
+		dist := b.loc.Dist(hill, loc)
+		var newLoc Location
+
+		try := func(dir Direction) {
+			newLoc = b.t.NewLoc(loc, dir)
+			if b.m.Terrain[newLoc] == Land {
+				score := 0
+				newDist := b.loc.Dist(hill, newLoc)
+				switch {
+				case dist < newDist:
+					if dist < 10 && !b.CheckMax(hill, newLoc, 10) {
+						return
+					}
+					score++
+				case dist > newDist:
+					score--
+				}
+
+				a = append(a, dir)
+				s = append(s, score)
+			}
+		}
+		try(North)
+		try(East)
+		try(South)
+		try(West)
+		if len(a) == 0 {
+			continue
+		}
+		dir := GetRandomDirection(a, s)
+		ant.Target = b.t.NewLoc(loc, dir)
+		path := NewPath(b.t, loc)
+		path.Append(dir)
+		ant.Path = path
+		ant.Score = 1
+	}
 
 	b.m.MoveAnts()
 	b.perf.Log("MoveAnts")
