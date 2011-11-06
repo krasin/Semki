@@ -18,6 +18,8 @@ const MoveFromMyHillScore = 10000000
 
 const MaxFindNearCount = 30
 
+const MaxDistToTarget = 10
+
 const GridSize = 8
 
 const XaosP = 0.25
@@ -47,23 +49,25 @@ func (b *MyBot) Init(p Params) (err os.Error) {
 	b.loc = NewFairLocator(b.m, big)
 	b.pf = NewPathFinder(b.t, b.m, b.loc)
 	b.LocatorBudgetMs = 100
-	b.gridSet = NewGridLocatedSet(b.t, b.m, GridSize)
+	b.gridSet = NewGridLocatedSet(b.t, b.m, b.loc, GridSize)
 	return nil
 }
 
 type GridLocatedSet struct {
 	t          Torus
 	m          *Map
+	loc        Locator
 	k          int
 	antsByProv LocListMap
 	locSet     LocSet
 }
 
-func NewGridLocatedSet(t Torus, m *Map, k int) *GridLocatedSet {
+func NewGridLocatedSet(t Torus, m *Map, loc Locator, k int) *GridLocatedSet {
 	return &GridLocatedSet{
 		t:          t,
-		k:          k,
 		m:          m,
+		loc:        loc,
+		k:          k,
 		antsByProv: NewLocListMap(t.Size()),
 		locSet:     NewLocSet(t.Size()),
 	}
@@ -106,6 +110,9 @@ func (s *GridLocatedSet) FindNear(at Location, score int, ok func(Location, int,
 		q, q2 = q2[:0], q
 		for _, gridLoc := range q2 {
 			for _, ant := range s.antsByProv.Get(gridLoc) {
+				if s.loc.Dist(at, ant) > MaxDistToTarget {
+					continue
+				}
 				if ok(ant, score, gridLoc == start) {
 					return ant, true
 				}
@@ -274,7 +281,8 @@ func GetRandomDirection(dirs []Direction, scores []int) Direction {
 }
 
 func (b *MyBot) CheckMax(hill, loc Location, max int) bool {
-	panic("CheckMax not implemented")
+	return true
+	//	panic("CheckMax not implemented")
 }
 
 func (b *MyBot) DoTurn(input []Input) (orders []Order, err os.Error) {
@@ -305,17 +313,21 @@ func (b *MyBot) DoTurn(input []Input) (orders []Order, err os.Error) {
 
 		try := func(dir Direction) {
 			newLoc = b.t.NewLoc(loc, dir)
-			if b.m.Terrain[newLoc] == Land {
+			if b.m.Terrain[newLoc] == Land &&
+				!b.m.Items[turn].HasAntAt(newLoc, Me) {
 				score := 0
 				newDist := b.loc.Dist(hill, newLoc)
 				switch {
 				case dist < newDist:
-					if dist < 10 && !b.CheckMax(hill, newLoc, 10) {
-						return
-					}
 					score++
+					if dist < 10 {
+						score++
+					}
 				case dist > newDist:
 					score--
+					if dist < 10 {
+						score--
+					}
 				}
 
 				a = append(a, dir)
@@ -336,6 +348,7 @@ func (b *MyBot) DoTurn(input []Input) (orders []Order, err os.Error) {
 		ant.Path = path
 		ant.Score = 1
 	}
+	b.Plan()
 
 	b.m.MoveAnts()
 	b.perf.Log("MoveAnts")
